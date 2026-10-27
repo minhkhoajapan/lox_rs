@@ -4,6 +4,7 @@ use crate::utils::scanner::scan_tokens;
 
 mod utils;
 mod error;
+mod ast;
 
 fn main() {
     let path = env::args().nth(1).unwrap_or_else(|| {
