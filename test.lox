@@ -1,0 +1,18 @@
+var language = "lox";
+var answer = 42;
+var pi = 3.14;
+
+if (answer >= 40 and pi != 3) {
+    print language;
+} else {
+    print nil;
+}
+
+fun add(a, b) {
+    return a + b * -1;
+}
+
+while (!false) print add(1, 2) <= 3 == true;
+
+@
+"unterminated
