@@ -100,7 +100,8 @@ impl<'a> Scanner<'a> {
             self.next();
             Token { token_type: TokenType::String(lexeme.parse().unwrap()), lexeme, line: self.line }
         } else {
-            syntax_error(self.line, "Unterminated string")
+            syntax_error(self.line, "Unterminated string");
+            self.scan_token()
         }
         
     }
@@ -197,7 +198,10 @@ impl<'a> Scanner<'a> {
                     TokenType::Slash
                 }
             },
-            _ => syntax_error(self.line, &format!("Unexpected character: '{}'", c)),
+            _ => {
+                syntax_error(self.line, &format!("Unexpected character: '{}'", c));
+                return self.scan_token() // skip the bad character and keep scanning
+            },
         };
 
         Token {

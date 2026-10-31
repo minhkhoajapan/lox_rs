@@ -1,6 +1,6 @@
 use std::{env, fs, process};
 
-use crate::utils::scanner::scan_tokens;
+use crate::{error::error::had_error, utils::scanner::scan_tokens};
 
 mod utils;
 mod error;
@@ -19,5 +19,9 @@ fn main() {
 
     for token in scan_tokens(&source) {
         println!("{:>3} {:?} '{}'", token.line, token.token_type, token.lexeme);
+    }
+
+    if had_error() {
+        process::exit(65);
     }
 }
