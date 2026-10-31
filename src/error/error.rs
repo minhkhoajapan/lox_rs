@@ -1,14 +1,6 @@
-#[derive(Debug, PartialEq, Clone)]
-pub enum LoxError {
-    UnterminatedString,
-    UnknownSymbol(char),
-}
+use std::process;
 
-impl std::fmt::Display for LoxError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LoxError::UnterminatedString => write!(f, "Unterminated string"),
-            LoxError::UnknownSymbol(c) => write!(f, "Unexpected character: '{}'", c),
-        }
-    }
+pub fn syntax_error(line: usize, msg: &str) -> ! {
+    eprintln!("[line {}] SyntaxError: {}", line, msg);
+    process::exit(65);
 }

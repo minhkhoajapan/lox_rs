@@ -1,5 +1,3 @@
-use crate::error::error::LoxError;
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     Eof,
@@ -48,9 +46,6 @@ pub enum TokenType {
     True,
     Var,
     While,
-
-    // Unexpeted (error)
-    Unexpected(LoxError),
 }
 
 #[derive(Debug, Clone)]

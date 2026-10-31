@@ -1,6 +1,6 @@
 use std::{iter::{Peekable}, str::Chars};
 
-use crate::{error::error::LoxError, utils::token::{Token, TokenType::{self}}};
+use crate::{error::error::syntax_error,utils::token::{Token, TokenType::{self}}};
 
 pub fn scan_tokens(source: &str) -> Vec<Token> {
     let mut tokens: Vec<Token> = Vec::new();
@@ -100,7 +100,7 @@ impl<'a> Scanner<'a> {
             self.next();
             Token { token_type: TokenType::String(lexeme.parse().unwrap()), lexeme, line: self.line }
         } else {
-            Token { token_type: TokenType::Unexpected(LoxError::UnterminatedString), lexeme: "".to_string(), line: self.line}
+            syntax_error(self.line, "Unterminated string")
         }
         
     }
@@ -197,7 +197,7 @@ impl<'a> Scanner<'a> {
                     TokenType::Slash
                 }
             },
-            _ => TokenType::Unexpected(LoxError::UnknownSymbol(c)),
+            _ => syntax_error(self.line, &format!("Unexpected character: '{}'", c)),
         };
 
         Token {
@@ -224,6 +224,9 @@ impl<'a> Scanner<'a> {
         while let Some(c) = self.source.peek() {
             if !till(c) {
                 break;
+            }
+            if c == &'\n' {
+                self.line += 1;
             }
             self.next();
         }
