@@ -1,0 +1,133 @@
+use std::{iter::Peekable, slice::Iter};
+
+use crate::{error::error::syntax_error_at, parser::ast::{BinaryOperator, Expr, UnaryOperator}, utils::token::{Token, TokenType}};
+
+#[derive(Debug)]
+struct ParseError;
+
+struct Parser<'a> {
+    tokens: Peekable<Iter<'a, Token>>   
+}
+
+impl<'a> Parser<'a> {
+    fn new(tokens: &'a[Token]) -> Self {
+        Parser {
+            tokens: tokens.iter().peekable()
+        }
+    }
+
+    fn expression(&mut self) -> Result<Expr, ParseError> {
+        self.equality()
+    }
+
+    fn equality(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.comparision()?;
+        loop {
+            let binary_operator = match &self.peek().token_type {
+                TokenType::EqualEqual => BinaryOperator::EqualEqual,
+                TokenType::BangEqual => BinaryOperator::BangEqual,
+                _ => break
+            };
+            self.tokens.next();
+            let right = self.comparision()?;
+            expr = Expr::Binary { left: Box::new(expr), operator: binary_operator, right: Box::new(right) }
+        }
+        Ok(expr)
+    }
+
+    fn comparision(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.term()?;
+        loop {
+            let binary_operator = match &self.peek().token_type {
+                TokenType::Greater => BinaryOperator::Greater,
+                TokenType::GreaterEqual => BinaryOperator::GreaterEqual,
+                TokenType::Less => BinaryOperator::Less,
+                TokenType::LessEqual => BinaryOperator::LessEqual,
+                _ => break
+            };
+            self.tokens.next();
+            let right = self.term()?;
+            expr = Expr::Binary { left: Box::new(expr), operator: binary_operator, right: Box::new(right) }
+        }
+        Ok(expr)
+    }
+
+    fn term(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.factor()?;
+        loop {
+            let binary_operator = match &self.peek().token_type {
+                TokenType::Plus => BinaryOperator::Star,
+                TokenType::Minus => BinaryOperator::Minus,
+                _ => break,
+            };
+            self.tokens.next();
+            let right = self.factor()?;
+            expr = Expr::Binary { left: Box::new(expr), operator: binary_operator, right: Box::new(right) }
+        }
+        Ok(expr)
+    }
+
+    fn factor(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.unary()?;
+        loop {
+            let binary_operator = match &self.peek().token_type {
+                TokenType::Slash => BinaryOperator::Slash,
+                TokenType::Star => BinaryOperator::Star,
+                _ => break,
+            };
+            self.tokens.next();
+            let right = self.unary()?;
+            expr = Expr::Binary { left: Box::new(expr), operator: binary_operator, right: Box::new(right) }
+        }
+        Ok(expr)
+    }
+
+    fn unary(&mut self) -> Result<Expr, ParseError> {
+        let unary_operator = match &self.peek().token_type {
+            TokenType::Bang => UnaryOperator::Bang,
+            TokenType::Minus => UnaryOperator::Minus,
+            _ => return self.primary()
+        };
+        self.tokens.next();
+        let expr = self.unary()?;
+        Ok(Expr::Unary { operator: unary_operator, right: Box::new(expr) })
+    }
+
+    fn primary(&mut self) -> Result<Expr, ParseError> {
+        let token = self.peek();
+        let expression = match &token.token_type {
+            TokenType::False =>  Expr::Literal(super::ast::Literal::Bool(false)),
+            TokenType::True => Expr::Literal(super::ast::Literal::Bool(true)),
+            TokenType::Nil => Expr::Literal(super::ast::Literal::Nil),
+            TokenType::Number(n) => Expr::Literal(super::ast::Literal::Number(*n)),
+            TokenType::String(s) => Expr::Literal(super::ast::Literal::Str(s.clone())),
+            _ => {
+                return self.grouping();
+            }
+        };
+
+        self.tokens.next();
+
+        Ok(expression)
+    }
+
+    fn peek(&mut self) -> &'a Token {
+        self.tokens.peek().unwrap()
+    }
+
+    fn grouping(&mut self) -> Result<Expr, ParseError> {
+        if matches!(self.peek().token_type, TokenType::LeftParen) {
+            self.tokens.next();
+            let expr = self.expression()?;
+            if matches!(self.peek().token_type, TokenType::RightParen) {
+                 Ok(Expr::Grouping(Box::new(expr)))
+            } else {
+                syntax_error_at(self.peek(), "Expected ')'.");
+                Err(ParseError)
+            }
+        } else {
+            syntax_error_at(self.peek(), "Expected grouping.");
+            Err(ParseError)
+        }
+    }
+}
