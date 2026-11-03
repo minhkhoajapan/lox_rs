@@ -12,13 +12,15 @@ pub enum Expr {
     Binary {
         left: Box<Expr>,
         operator: BinaryOperator,
-        right: Box<Expr>
+        right: Box<Expr>,
+        line: usize
     },
     Grouping(Box<Expr>),
     Literal(Literal),
     Unary {
         operator: UnaryOperator,
-        right: Box<Expr>
+        right: Box<Expr>,
+        line: usize
     },
 }
 

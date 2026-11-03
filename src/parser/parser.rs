@@ -28,9 +28,10 @@ impl<'a> Parser<'a> {
                 TokenType::BangEqual => BinaryOperator::BangEqual,
                 _ => break
             };
+            let line = self.peek().line;
             self.tokens.next();
             let right = self.comparision()?;
-            expr = Expr::Binary { left: Box::new(expr), operator: binary_operator, right: Box::new(right) }
+            expr = Expr::Binary { left: Box::new(expr), operator: binary_operator, right: Box::new(right), line }
         }
         Ok(expr)
     }
@@ -45,9 +46,10 @@ impl<'a> Parser<'a> {
                 TokenType::LessEqual => BinaryOperator::LessEqual,
                 _ => break
             };
+            let line = self.peek().line;
             self.tokens.next();
             let right = self.term()?;
-            expr = Expr::Binary { left: Box::new(expr), operator: binary_operator, right: Box::new(right) }
+            expr = Expr::Binary { left: Box::new(expr), operator: binary_operator, right: Box::new(right), line }
         }
         Ok(expr)
     }
@@ -56,13 +58,14 @@ impl<'a> Parser<'a> {
         let mut expr = self.factor()?;
         loop {
             let binary_operator = match &self.peek().token_type {
-                TokenType::Plus => BinaryOperator::Star,
+                TokenType::Plus => BinaryOperator::Plus,
                 TokenType::Minus => BinaryOperator::Minus,
                 _ => break,
             };
+            let line = self.peek().line;
             self.tokens.next();
             let right = self.factor()?;
-            expr = Expr::Binary { left: Box::new(expr), operator: binary_operator, right: Box::new(right) }
+            expr = Expr::Binary { left: Box::new(expr), operator: binary_operator, right: Box::new(right), line }
         }
         Ok(expr)
     }
@@ -75,9 +78,10 @@ impl<'a> Parser<'a> {
                 TokenType::Star => BinaryOperator::Star,
                 _ => break,
             };
+            let line = self.peek().line;
             self.tokens.next();
             let right = self.unary()?;
-            expr = Expr::Binary { left: Box::new(expr), operator: binary_operator, right: Box::new(right) }
+            expr = Expr::Binary { left: Box::new(expr), operator: binary_operator, right: Box::new(right), line }
         }
         Ok(expr)
     }
@@ -88,9 +92,10 @@ impl<'a> Parser<'a> {
             TokenType::Minus => UnaryOperator::Minus,
             _ => return self.primary()
         };
+        let line = self.peek().line;
         self.tokens.next();
         let expr = self.unary()?;
-        Ok(Expr::Unary { operator: unary_operator, right: Box::new(expr) })
+        Ok(Expr::Unary { operator: unary_operator, right: Box::new(expr), line })
     }
 
     fn primary(&mut self) -> Result<Expr, ParseError> {
@@ -120,7 +125,8 @@ impl<'a> Parser<'a> {
             self.tokens.next();
             let expr = self.expression()?;
             if matches!(self.peek().token_type, TokenType::RightParen) {
-                 Ok(Expr::Grouping(Box::new(expr)))
+                self.tokens.next();
+                Ok(Expr::Grouping(Box::new(expr)))
             } else {
                 syntax_error_at(self.peek(), "Expected ')'.");
                 Err(ParseError)
