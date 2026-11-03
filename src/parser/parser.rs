@@ -5,15 +5,20 @@ use crate::{error::error::syntax_error_at, parser::ast::{BinaryOperator, Expr, U
 #[derive(Debug)]
 struct ParseError;
 
-struct Parser<'a> {
-    tokens: Peekable<Iter<'a, Token>>   
+pub struct Parser<'a> {
+    tokens: Peekable<Iter<'a, Token>>
 }
 
 impl<'a> Parser<'a> {
-    fn new(tokens: &'a[Token]) -> Self {
+    pub fn new(tokens: &'a[Token]) -> Self {
         Parser {
             tokens: tokens.iter().peekable()
         }
+    }
+
+    // the error is already reported by syntax_error_at, so callers only need to know if it worked
+    pub fn parse(&mut self) -> Option<Expr> {
+        self.expression().ok()
     }
 
     fn expression(&mut self) -> Result<Expr, ParseError> {

@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::utils::token::{Token, TokenType};
 
 static HAD_ERROR: AtomicBool = AtomicBool::new(false);
+static HAD_RUNTIME_ERROR: AtomicBool = AtomicBool::new(false);
 
 pub fn syntax_error(line: usize, msg: &str) {
     report(line, "", msg);
@@ -19,6 +20,15 @@ pub fn syntax_error_at(token: &Token, msg: &str) {
 
 pub fn had_error() -> bool {
     HAD_ERROR.load(Ordering::Relaxed)
+}
+
+pub fn runtime_error(line: usize, msg: &str) {
+    eprintln!("[line {}] RuntimeError: {}", line, msg);
+    HAD_RUNTIME_ERROR.store(true, Ordering::Relaxed);
+}
+
+pub fn had_runtime_error() -> bool {
+    HAD_RUNTIME_ERROR.load(Ordering::Relaxed)
 }
 
 fn report(line: usize, location: &str, msg: &str) {

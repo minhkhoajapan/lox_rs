@@ -1,10 +1,16 @@
 use std::{env, fs, process};
 
-use crate::{error::error::had_error, utils::scanner::scan_tokens};
+use crate::{
+    error::error::{had_error, had_runtime_error},
+    parser::parser::Parser,
+    runtime::interpreter::Interpreter,
+    utils::scanner::scan_tokens,
+};
 
 mod utils;
 mod error;
 mod parser;
+mod runtime;
 
 fn main() {
     let path = env::args().nth(1).unwrap_or_else(|| {
@@ -17,11 +23,18 @@ fn main() {
         process::exit(66);
     });
 
-    for token in scan_tokens(&source) {
-        println!("{:>3} {:?} '{}'", token.line, token.token_type, token.lexeme);
-    }
+    let tokens = scan_tokens(&source);
+    let expr = Parser::new(&tokens).parse();
 
     if had_error() {
         process::exit(65);
+    }
+
+    if let Some(expr) = expr {
+        Interpreter::new().interpret(&expr);
+    }
+
+    if had_runtime_error() {
+        process::exit(70);
     }
 }
