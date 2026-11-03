@@ -1,5 +1,3 @@
-use crate::utils::token::Token;
-
 #[derive(Debug, Clone)]
 pub enum Literal {
     Number(f64),
