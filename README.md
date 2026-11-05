@@ -1,5 +1,8 @@
 # lox_rs
 
+## Grammar
+
+```
 program        → statement* EOF ;
 
 statement      → exprStmt
@@ -16,3 +19,4 @@ unary          → ( "!" | "-" ) unary
                | primary ;
 primary        → NUMBER | STRING | "true" | "false" | "nil"
                | "(" expression ")" ;
+```
