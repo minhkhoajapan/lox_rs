@@ -1,4 +1,4 @@
-use crate::{error::error::runtime_error, parser::ast::{BinaryOperator, Expr, Literal, UnaryOperator}, runtime::{RuntimeError, object::LoxObject}};
+use crate::{error::error::runtime_error, parser::ast::{BinaryOperator, Expr, Literal, Program, Statement, UnaryOperator}, runtime::{RuntimeError, object::LoxObject}};
 
 pub struct Interpreter {
 }
@@ -8,10 +8,26 @@ impl Interpreter {
         Interpreter {}
     }
 
-    pub fn interpret(&mut self, expr: &Expr) {
-        match self.eval_expression(expr) {
-            Ok(value) => println!("{:?}", value),
-            Err(e) => runtime_error(e.line, e.msg),
+    pub fn interpret(&mut self, program: &Program) {
+        for stmt in &program.statements {
+            if let Err(e) = self.exec_expression(stmt) {
+                runtime_error(e.line, e.msg);
+                return;
+            }
+        }
+    }
+
+    fn exec_expression(&mut self, statement: &Statement) -> Result<(), RuntimeError> {
+        match statement {
+            Statement::Expression { expression } => {
+                self.eval_expression(expression)?;
+                Ok(())
+            },
+            Statement::Print { expression } => {
+                let obj = self.eval_expression(expression)?;
+                println!("{}", obj);
+                Ok(())
+            }
         }
     }
 
