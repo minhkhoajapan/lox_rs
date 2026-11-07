@@ -24,15 +24,13 @@ fn main() {
     });
 
     let tokens = scan_tokens(&source);
-    let expr = Parser::new(&tokens).parse();
-
+    let program = Parser::new(&tokens).parse();
+    
     if had_error() {
         process::exit(65);
-    }
-
-    if let Some(expr) = expr {
-        Interpreter::new().interpret(&expr);
-    }
+    }   
+    
+    Interpreter::new().interpret(&program);
 
     if had_runtime_error() {
         process::exit(70);
