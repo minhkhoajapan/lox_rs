@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Debug, Clone)]
 pub enum LoxObject {
     Number(f64),
@@ -108,3 +110,14 @@ impl LoxObject {
         }
     }
 } 
+
+impl std::fmt::Display for LoxObject {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LoxObject::Number(val) => f.write_fmt(format_args!("{}", val)),
+            LoxObject::Str(val) => f.write_fmt(format_args!("{}", val)),
+            LoxObject::Bool(val) => f.write_fmt(format_args!("{}", val)),
+            LoxObject::Nil => f.write_str("nil")
+        }
+    }
+}
