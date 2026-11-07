@@ -1,3 +1,19 @@
+#[derive(Debug)]
+pub struct Program {
+    pub statements: Vec<Statement>,
+}
+
+#[derive(Debug)]
+pub enum Statement {
+    Expression {
+        expression: Box<Expr>,
+    },
+
+    Print {
+        expression: Box<Expr>,
+    },
+}
+
 #[derive(Debug, Clone)]
 pub enum Literal {
     Number(f64),
@@ -6,6 +22,7 @@ pub enum Literal {
     Nil
 }
 
+#[derive(Debug)]
 pub enum Expr {
     Binary {
         left: Box<Expr>,
@@ -22,6 +39,7 @@ pub enum Expr {
     },
 }
 
+#[derive(Debug)]
 pub enum BinaryOperator {
     EqualEqual,
     BangEqual,
@@ -35,6 +53,7 @@ pub enum BinaryOperator {
     Slash
 }
 
+#[derive(Debug)]
 pub enum UnaryOperator {
     Minus,
     Bang
