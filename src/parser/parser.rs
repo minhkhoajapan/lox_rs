@@ -22,17 +22,47 @@ impl<'a> Parser<'a> {
     pub fn parse(&mut self) -> Program {
         let mut program = Program {statements: Vec::new()};
         while !self.is_at_end() {
-            match self.statement() {
+            match self.declaration() {
                 Ok(stmt) => program.statements.push(stmt),
-                _ => continue
+                _ => {
+                    self.synchronize();
+                }
             }
         }
 
         program
     }
 
-    fn expression(&mut self) -> Result<Expr, ParseError> {
-        self.equality()
+    fn synchronize(&mut self) {
+        while !self.is_at_end() {
+            match self.peek().token_type {
+                TokenType::SemiColon => {
+                    self.tokens.next(); // consume the ';' and return
+                    return;
+                },
+                TokenType::Class
+                | TokenType::Fun
+                | TokenType::Var
+                | TokenType::For
+                | TokenType::If
+                | TokenType::While
+                | TokenType::Print
+                | TokenType::Return => {
+                    return;
+                },
+
+                _ => {
+                    self.tokens.next();
+                }
+            }
+        }
+    }
+
+    fn declaration(&mut self) -> Result<Statement, ParseError> {
+        match self.peek().token_type {
+            TokenType::Var => self.var_declaration(),
+            _ => self.statement(),
+        }
     }
 
     fn statement(&mut self) -> Result<Statement, ParseError> {
@@ -45,18 +75,58 @@ impl<'a> Parser<'a> {
     fn print_statement(&mut self) -> Result<Statement, ParseError> {
         self.tokens.next(); // consume 'print'
         let expr = self.expression()?;
-        self.expect_token(TokenType::SemiColon, "Expected ';' after value.")?;
+        self.expect_token(TokenType::SemiColon, "Expected ';' after statement.")?;
         Ok(Statement::Print {
             expression: Box::new(expr),
         })
     }
 
+    fn var_declaration(&mut self) -> Result<Statement, ParseError> {
+        self.tokens.next(); // consume 'var'
+        let name = self.expect_identifier("Expected variable name.")?;
+        let initializer = if self.peek().token_type == TokenType::Equal {
+            self.tokens.next(); // consume the '='
+            Some(Box::new(self.expression()?))
+        } else {
+            None
+        };
+
+        self.expect_token(TokenType::SemiColon, "Expected ';'")?;
+        Ok(Statement::VarDeclaration { name, initializer })
+    }
+
     fn expression_statement(&mut self) -> Result<Statement, ParseError> {
         let expr = self.expression()?;
-        self.expect_token(TokenType::SemiColon, "Expected ';' after ")?;
-        Ok(Statement::Print {
+        self.expect_token(TokenType::SemiColon, "Expected ';' after expression.")?;
+        Ok(Statement::Expression {
             expression: Box::new(expr),
         })
+    }
+
+    fn expression(&mut self) -> Result<Expr, ParseError> {
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> Result<Expr, ParseError> {
+        // Do return a ParseError here if the left-hand side is errornous
+        let expr = self.equality()?;
+
+        if matches!(self.peek().token_type, TokenType::Equal) {
+            let equal_token = self.tokens.next().unwrap(); // consume the '='
+            // Do return a ParseError here if the right-hand side is errornous
+            let value = self.assignment()?;
+
+            // report an error if the left-hand side is not a valid assignment target
+            // but do not return ParseError, just report
+            // Ex: a + b = c => Parsed fine but meaningless, so it is reported only
+            if let Expr::Variable { name, line } = expr {
+                return Ok(Expr::Assignment { name, value: Box::new(value), line  })
+            } else {
+                syntax_error_at(equal_token, "Invalid assignment target.");
+            }
+        }
+
+        Ok(expr)
     }
 
     fn equality(&mut self) -> Result<Expr, ParseError> {
@@ -169,6 +239,7 @@ impl<'a> Parser<'a> {
             TokenType::Nil => Expr::Literal(super::ast::Literal::Nil),
             TokenType::Number(n) => Expr::Literal(super::ast::Literal::Number(*n)),
             TokenType::String(s) => Expr::Literal(super::ast::Literal::Str(s.clone())),
+            TokenType::Identifier(name) => Expr::Variable { name: name.clone(), line: token.line },
             _ => {
                 return self.grouping();
             }
@@ -201,13 +272,27 @@ impl<'a> Parser<'a> {
     }
 
     // check if the token is of a certain kind.
-    // it true then consume that token
+    // if true then consume and return that token
     // else print out the error and return ParseError
     fn expect_token(&mut self, expected: TokenType, error_msg: &str) -> Result<&Token, ParseError> {
         if self.peek().token_type == expected {
             Ok(self.tokens.next().unwrap())
         } else {
             syntax_error_at(self.peek(), error_msg);
+            Err(ParseError)
+        }
+    }
+
+    // check if the token is of type identifier
+    // if true then consume and return the String that is contained in that token
+    // else print out the error and return ParseError
+    fn expect_identifier(&mut self, msg: &str) -> Result<String, ParseError> {
+        if let TokenType::Identifier(name) = &self.peek().token_type {
+            let name = name.clone();
+            self.tokens.next(); // consume the token
+            Ok(name)
+        } else {
+            syntax_error_at(self.peek(), msg);
             Err(ParseError)
         }
     }
