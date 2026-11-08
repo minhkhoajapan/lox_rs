@@ -12,6 +12,11 @@ pub enum Statement {
     Print {
         expression: Box<Expr>,
     },
+
+    VarDeclaration {
+        name: String,
+        initializer: Option<Box<Expr>>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -19,23 +24,32 @@ pub enum Literal {
     Number(f64),
     Str(String),
     Bool(bool),
-    Nil
+    Nil,
 }
 
 #[derive(Debug)]
 pub enum Expr {
+    Assignment {
+        name: String,
+        value: Box<Expr>,
+        line: usize,
+    },
     Binary {
         left: Box<Expr>,
         operator: BinaryOperator,
         right: Box<Expr>,
-        line: usize
+        line: usize,
     },
     Grouping(Box<Expr>),
     Literal(Literal),
     Unary {
         operator: UnaryOperator,
         right: Box<Expr>,
-        line: usize
+        line: usize,
+    },
+    Variable {
+        name: String,
+        line: usize,
     },
 }
 
@@ -50,13 +64,11 @@ pub enum BinaryOperator {
     Plus,
     Minus,
     Star,
-    Slash
+    Slash,
 }
 
 #[derive(Debug)]
 pub enum UnaryOperator {
     Minus,
-    Bang
+    Bang,
 }
-
-
