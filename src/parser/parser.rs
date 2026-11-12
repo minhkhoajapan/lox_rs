@@ -68,6 +68,7 @@ impl<'a> Parser<'a> {
     fn statement(&mut self) -> Result<Statement, ParseError> {
         match self.peek().token_type {
             TokenType::Print => self.print_statement(),
+            TokenType::LeftBrace => self.block_statement(),
             _ => self.expression_statement(),
         }
     }
@@ -101,6 +102,21 @@ impl<'a> Parser<'a> {
         Ok(Statement::Expression {
             expression: Box::new(expr),
         })
+    }
+
+    fn block_statement(&mut self) -> Result<Statement, ParseError> {
+        self.tokens.next(); // consume '{'
+        let mut statements = Vec::new();
+        while !matches!(self.peek().token_type, TokenType::RightBrace) && !self.is_at_end() {
+            match self.declaration() {
+                Ok(stmt) => statements.push(stmt),
+                _ => {
+                    self.synchronize();
+                }
+            }
+        }
+        self.expect_token(TokenType::RightBrace, "Expected '}' after block.");
+        Ok(Statement::Block { statements })
     }
 
     fn expression(&mut self) -> Result<Expr, ParseError> {

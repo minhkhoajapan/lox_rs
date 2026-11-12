@@ -1,8 +1,12 @@
 var a = 10;
 var b = 9;
-b = 99;
-print a + (b + 1) * 4;
-print (a + b) * 4;
-print a;
-print b;
+
+var c = 15;
+{
+var c = 45;
+print a * b + 45;
+}
+
 print c;
+
+

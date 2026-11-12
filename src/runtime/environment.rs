@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, fmt::format, rc::Rc};
 use crate::runtime::{object::LoxObject};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Environment(Rc<RefCell<EnvironmentScope>>);
 
 #[derive(Debug)]
@@ -18,19 +18,30 @@ impl Environment {
         })))
     }
 
-    pub fn define(&mut self, name: String, value: LoxObject) {
+    pub fn with_enclosing(enclosing: Environment) -> Self {
+        Environment(Rc::new(RefCell::new(EnvironmentScope { 
+            enclosing: Some(enclosing), 
+            values: HashMap::new() 
+        })))
+    }
+
+    pub fn define(&self, name: String, value: LoxObject) {
         self.0.borrow_mut().values.insert(name, value);
     }
 
     pub fn get(&self, name: &str) -> Result<LoxObject, String> {
-        if let Some(value) = self.0.borrow().values.get(name) {
+        let scope = self.0.borrow();
+        if let Some(value) = scope.values.get(name) {
             Ok(value.clone())
+        }
+        else if let Some(enclose) = &scope.enclosing {
+            enclose.get(name)
         } else {
             Err(format!("Undefined variable '{}'", name))
         }
     }
 
-    pub fn assign(&mut self, name: &str, value: LoxObject) -> Result<(), String> {
+    pub fn assign(&self, name: &str, value: LoxObject) -> Result<(), String> {
         match self.0.borrow_mut().values.get_mut(name) {
             Some(slot) => {
                 *slot = value;

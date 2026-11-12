@@ -17,6 +17,10 @@ pub enum Statement {
         name: String,
         initializer: Option<Box<Expr>>,
     },
+
+    Block {
+        statements: Vec<Statement>,
+    },
 }
 
 #[derive(Debug, Clone)]

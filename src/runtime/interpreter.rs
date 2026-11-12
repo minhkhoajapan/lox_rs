@@ -34,6 +34,10 @@ impl Interpreter {
             Statement::VarDeclaration { name, initializer } => {
                 self.exec_var_declaration(name, initializer)?;
                 Ok(())
+            },
+            Statement::Block { statements } => {
+                self.exec_block(statements)?;
+                Ok(())
             }
         }
     }
@@ -48,6 +52,15 @@ impl Interpreter {
         self.environment.define(name.to_owned(), value);
         Ok(())
     }
+
+    fn exec_block(&mut self, statements: &[Statement]) -> Result<(), RuntimeError> {
+        let previous = self.environment.clone();  // cheap Rc clone
+        self.environment = Environment::with_enclosing(previous.clone());
+        let result = statements.iter().try_for_each(|s| self.exec_statement(s));
+        self.environment = previous;
+
+        result
+     }
 
     fn eval_expression(&mut self, expr: &Expr) -> Result<LoxObject, RuntimeError> {
         match expr {
