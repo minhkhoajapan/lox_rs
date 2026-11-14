@@ -1,7 +1,7 @@
 use std::{iter::Peekable, slice::Iter};
 
 use crate::{
-    error::error::syntax_error_at, parser::ast::{BinaryOperator, Expr, Program, Statement, UnaryOperator}, utils::token::{Token, TokenType},
+    error::error::syntax_error_at, parser::ast::{BinaryOperator, Expr, LogicalOperator, Program, Statement, UnaryOperator}, utils::token::{Token, TokenType},
 };
 
 #[derive(Debug)]
@@ -141,7 +141,7 @@ impl<'a> Parser<'a> {
 
     fn assignment(&mut self) -> Result<Expr, ParseError> {
         // Do return a ParseError here if the left-hand side is errornous
-        let expr = self.equality()?;
+        let expr = self.or()?;
 
         if matches!(self.peek().token_type, TokenType::Equal) {
             let equal_token = self.tokens.next().unwrap(); // consume the '='
@@ -158,6 +158,42 @@ impl<'a> Parser<'a> {
             }
         }
 
+        Ok(expr)
+    }
+
+    fn or(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.and()?;
+        loop {
+            let logical_operator = match &self.peek().token_type {
+                TokenType::Or => LogicalOperator::Or,
+                _ => break,
+            };
+            self.tokens.next(); // consume the "or"
+            let right = self.and()?;
+            expr = Expr::Logical {
+                left: Box::new(expr),
+                operator: logical_operator,
+                right: Box::new(right),
+            }
+        }
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.equality()?;
+        loop {
+            let logical_operator = match &self.peek().token_type {
+                TokenType::And => LogicalOperator::And,
+                _ => break,
+            };
+            self.tokens.next(); // consime the "and"
+            let right = self.equality()?;
+            expr = Expr::Logical {
+                left: Box::new(expr),
+                operator: logical_operator,
+                right: Box::new(right),
+            }
+        }
         Ok(expr)
     }
 

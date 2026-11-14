@@ -52,6 +52,11 @@ pub enum Expr {
     },
     Grouping(Box<Expr>),
     Literal(Literal),
+    Logical {
+        left: Box<Expr>,
+        operator: LogicalOperator,
+        right: Box<Expr>,
+    },
     Unary {
         operator: UnaryOperator,
         right: Box<Expr>,
@@ -81,4 +86,10 @@ pub enum BinaryOperator {
 pub enum UnaryOperator {
     Minus,
     Bang,
+}
+
+#[derive(Debug)]
+pub enum LogicalOperator {
+    Or,
+    And,
 }

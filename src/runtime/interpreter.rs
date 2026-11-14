@@ -1,4 +1,4 @@
-use crate::{error::error::runtime_error, parser::ast::{BinaryOperator, Expr, Literal, Program, Statement, UnaryOperator}, runtime::{RuntimeError, environment::Environment, object::LoxObject}};
+use crate::{error::error::runtime_error, parser::ast::{BinaryOperator, Expr, Literal, LogicalOperator, Program, Statement, UnaryOperator}, runtime::{RuntimeError, environment::Environment, object::LoxObject}};
 
 pub struct Interpreter {
     pub environment: Environment
@@ -70,6 +70,7 @@ impl Interpreter {
         match expr {
             Expr::Grouping(expr) => self.eval_expression(expr),
             Expr::Literal(val) => self.eval_literal_value(val),
+            Expr::Logical { left, operator, right } => self.eval_logical(left, operator, right),
             Expr::Unary {operator, right, line } => self.eval_unary(operator, right, line),
             Expr::Binary { left, operator, right, line } => self.eval_binary(left, operator, right, line),
             Expr::Variable { name, line } => self.eval_variable(name, line),
@@ -94,6 +95,23 @@ impl Interpreter {
             Literal::Str(s) => LoxObject::Str(s.clone()),
             Literal::Nil => LoxObject::Nil,
         })
+    }
+
+    fn eval_logical(&mut self, left: &Expr, operator: &LogicalOperator, right: &Expr) -> Result<LoxObject, RuntimeError> {
+        let left_result = self.eval_expression(left)?;
+        match operator {
+            LogicalOperator::Or => {
+                if left_result.is_truthy() {
+                    return Ok(left_result);
+                }
+            },
+            LogicalOperator::And => {
+                if !left_result.is_truthy() {
+                    return Ok(left_result);
+                }
+            }
+        }
+        self.eval_expression(right)
     }
 
     fn eval_unary(&mut self, operator: &UnaryOperator, right_expr: &Expr, line: &usize) -> Result<LoxObject, RuntimeError> {
