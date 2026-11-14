@@ -20,7 +20,7 @@ impl LoxObject {
         LoxObject::Bool(!self.is_truthy())
     }
 
-    fn is_truthy(&self) -> bool {
+    pub fn is_truthy(&self) -> bool {
         !matches!(self, LoxObject::Nil | LoxObject::Bool(false))
     }
 
