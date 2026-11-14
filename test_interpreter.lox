@@ -1,12 +1,6 @@
-var a = 10;
-var b = 9;
-
-var c = 15;
-{
-var c = 45;
-print a * b + 45;
+var a;
+if (a) {
+   print "a is something";
+} else {
+  print "a is not thing";
 }
-
-print c;
-
-
