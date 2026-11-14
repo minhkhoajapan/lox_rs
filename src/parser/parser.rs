@@ -67,10 +67,26 @@ impl<'a> Parser<'a> {
 
     fn statement(&mut self) -> Result<Statement, ParseError> {
         match self.peek().token_type {
+            TokenType::If => self.if_statement(),
             TokenType::Print => self.print_statement(),
             TokenType::LeftBrace => self.block_statement(),
             _ => self.expression_statement(),
         }
+    }
+
+    fn if_statement(&mut self) -> Result<Statement, ParseError> {
+        self.tokens.next(); // consume 'if'
+        self.expect_token(TokenType::LeftParen, "Expect '(' after 'if'.")?; // consume "("
+        let condition = Box::new(self.expression()?);
+        self.expect_token(TokenType::RightParen, "Expect ')' after if condition.")?; // consume ")"
+        let then_branch = Box::new(self.statement()?);
+        let else_branch = if matches!(self.peek().token_type, TokenType::Else) {
+            self.tokens.next(); // consume "else"
+            Some(Box::new(self.statement()?))
+        } else {
+            None
+        };
+        Ok(Statement::ConditionalExpression { condition, then_branch, else_branch })
     }
 
     fn print_statement(&mut self) -> Result<Statement, ParseError> {
@@ -115,7 +131,7 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        self.expect_token(TokenType::RightBrace, "Expected '}' after block.");
+        self.expect_token(TokenType::RightBrace, "Expected '}' after block.")?;
         Ok(Statement::Block { statements })
     }
 

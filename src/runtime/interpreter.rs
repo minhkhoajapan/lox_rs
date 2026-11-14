@@ -26,6 +26,10 @@ impl Interpreter {
                 self.eval_expression(expression)?;
                 Ok(())
             },
+            Statement::ConditionalExpression { condition, then_branch, else_branch } => {
+                self.exec_conditional(condition, then_branch, else_branch)?;
+                Ok(())
+            },
             Statement::Print { expression } => {
                 let obj = self.eval_expression(expression)?;
                 println!("{}", obj);
@@ -70,6 +74,16 @@ impl Interpreter {
             Expr::Binary { left, operator, right, line } => self.eval_binary(left, operator, right, line),
             Expr::Variable { name, line } => self.eval_variable(name, line),
             Expr::Assignment { name, value, line } => self.eval_assignment(name, value, line),
+        }
+    }
+
+    fn exec_conditional(&mut self, condition: &Expr, then_branch: &Statement, else_branch: &Option<Box<Statement>>) -> Result<(), RuntimeError> {
+        if self.eval_expression(condition)?.is_truthy() {
+            self.exec_statement(then_branch)
+        } else if let Some(else_branch_unwrapped) = else_branch {
+            self.exec_statement(else_branch_unwrapped)
+        } else {
+            Ok(())
         }
     }
 

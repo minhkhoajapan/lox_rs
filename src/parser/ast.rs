@@ -21,6 +21,12 @@ pub enum Statement {
     Block {
         statements: Vec<Statement>,
     },
+
+    ConditionalExpression {
+        condition: Box<Expr>,
+        then_branch: Box<Statement>,
+        else_branch: Option<Box<Statement>>,
+    }
 }
 
 #[derive(Debug, Clone)]
