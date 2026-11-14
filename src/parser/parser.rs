@@ -69,6 +69,7 @@ impl<'a> Parser<'a> {
         match self.peek().token_type {
             TokenType::If => self.if_statement(),
             TokenType::Print => self.print_statement(),
+            TokenType::While => self.while_statemen(),
             TokenType::LeftBrace => self.block_statement(),
             _ => self.expression_statement(),
         }
@@ -110,6 +111,15 @@ impl<'a> Parser<'a> {
 
         self.expect_token(TokenType::SemiColon, "Expected ';'")?;
         Ok(Statement::VarDeclaration { name, initializer })
+    }
+
+    fn while_statemen(&mut self) -> Result<Statement, ParseError> {
+        self.tokens.next(); // consune 'while'
+        self.expect_token(TokenType::LeftParen, "Expect '(' after while.")?;
+        let condition = self.expression()?;
+        self.expect_token(TokenType::RightParen, "Expect ')' after condition.")?;
+        let body = self.statement()?;
+        Ok(Statement::WhileLoop { condition: Box::new(condition), body: Box::new(body) })
     }
 
     fn expression_statement(&mut self) -> Result<Statement, ParseError> {

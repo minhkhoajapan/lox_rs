@@ -39,6 +39,10 @@ impl Interpreter {
                 self.exec_var_declaration(name, initializer)?;
                 Ok(())
             },
+            Statement::WhileLoop { condition, body } => {
+                self.exec_whileloop(condition, body)?;
+                Ok(())
+            }
             Statement::Block { statements } => {
                 self.exec_block(statements)?;
                 Ok(())
@@ -54,6 +58,13 @@ impl Interpreter {
         };
 
         self.environment.define(name.to_owned(), value);
+        Ok(())
+    }
+
+    fn exec_whileloop(&mut self, condition: &Expr, body: &Statement) -> Result<(), RuntimeError> {
+        while self.eval_expression(condition)?.is_truthy() {
+            self.exec_statement(body)?;
+        }
         Ok(())
     }
 

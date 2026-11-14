@@ -26,7 +26,12 @@ pub enum Statement {
         condition: Box<Expr>,
         then_branch: Box<Statement>,
         else_branch: Option<Box<Statement>>,
-    }
+    },
+
+    WhileLoop {
+        condition: Box<Expr>,
+        body: Box<Statement>,
+    },
 }
 
 #[derive(Debug, Clone)]
