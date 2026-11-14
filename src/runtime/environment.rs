@@ -42,14 +42,14 @@ impl Environment {
     }
 
     pub fn assign(&self, name: &str, value: LoxObject) -> Result<(), String> {
-        match self.0.borrow_mut().values.get_mut(name) {
-            Some(slot) => {
-                *slot = value;
-                Ok(())
-            },
-            None => {
-                Err(format!("Undefined variable '{}'", name))
-            }
+        let mut scope = self.0.borrow_mut();
+        if let Some(slot) = scope.values.get_mut(name) {
+            *slot = value;
+            Ok(())
+        } else if let Some(enclose) = &scope.enclosing {
+            enclose.assign(name, value)
+        }  else {
+            Err(format!("Undefined variable '{}'", name))
         }
     }
 }
