@@ -1,6 +1,3 @@
-var a;
-if (a) {
-   print "a is something";
-} else {
-  print "a is not thing";
-}
+print 2 or "hi";
+print nil and "yes";
+print nil or 69;
