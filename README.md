@@ -5,8 +5,12 @@
 ```
 program        → declaration* EOF ;
 
-declaration    → varDecl
+declaration    → funDecl
+               | varDecl
                | statement ;
+
+funDecl        → "fun" function ;
+function       → IDENTIFIER "(" parameters? ")" block ;
 
 varDecl        → "var" IDENTIFIER ("=" expression)? ";" ;
 
