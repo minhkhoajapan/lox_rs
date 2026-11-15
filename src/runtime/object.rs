@@ -1,10 +1,14 @@
-use std::fmt;
+use std::{fmt, rc::Rc};
+
+use crate::runtime::function::{NativeFunction, UserFunction};
 
 #[derive(Debug, Clone)]
 pub enum LoxObject {
     Number(f64),
     Str(String),
     Bool(bool),
+    UserFunction(Rc<UserFunction>),
+    NativeFunction(Rc<NativeFunction>),
     Nil,
 }
 
