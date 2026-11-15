@@ -55,6 +55,11 @@ pub enum Expr {
         right: Box<Expr>,
         line: usize,
     },
+    Call {
+        callee: Box<Expr>,
+        arguments: Vec<Expr>,
+        line:usize,
+    },
     Grouping(Box<Expr>),
     Literal(Literal),
     Logical {
