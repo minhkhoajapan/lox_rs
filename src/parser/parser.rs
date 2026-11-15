@@ -1,4 +1,4 @@
-use std::{iter::Peekable, slice::Iter};
+use std::{iter::Peekable, rc::Rc, slice::Iter};
 
 use crate::{
     error::error::syntax_error_at, parser::ast::{BinaryOperator, Expr, LogicalOperator, Program, Statement, UnaryOperator}, utils::token::{Token, TokenType},
@@ -60,9 +60,40 @@ impl<'a> Parser<'a> {
 
     fn declaration(&mut self) -> Result<Statement, ParseError> {
         match self.peek().token_type {
+            TokenType::Fun => self.function_declaration(),
             TokenType::Var => self.var_declaration(),
             _ => self.statement(),
         }
+    }
+
+    fn function_declaration(&mut self) -> Result<Statement, ParseError> {
+        self.tokens.next(); // consume 'fun'
+        let name = self.expect_identifier("Expect function name.")?;
+        self.expect_token(TokenType::LeftParen, "Expect '(' after function name.")?;
+
+        let mut params = Vec::new();
+        if !matches!(self.peek().token_type, TokenType::RightParen) {
+            loop {
+                if params.len() >= 255 {
+                    syntax_error_at(self.peek(), "Can't have more than 255 parameters.");
+                    return Err(ParseError)
+                }
+                
+                params.push(self.expect_identifier("Expect parameter name.")?);
+
+                if matches!(self.peek().token_type, TokenType::Comma) {
+                    self.tokens.next(); //consume ','
+                } else {
+                    break;
+                }
+            }
+        }
+        self.expect_token(TokenType::RightParen, "Expect ')' after parameters.")?;
+        self.expect_token(TokenType::LeftBrace, "Expect '{' before ")?;
+
+        let body = self.block_statement()?;
+
+        Ok(Statement::FunctionDeclaration { name, params: Rc::from(params), body: Rc::from(body) })
     }
 
     fn var_declaration(&mut self) -> Result<Statement, ParseError> {
@@ -372,7 +403,7 @@ impl<'a> Parser<'a> {
         if !matches!(self.peek().token_type, TokenType::RightParen) {
             loop {
                 if args.len() >= 255 {
-                    syntax_error_at(self.peek(), "");
+                    syntax_error_at(self.peek(), "Can't have more than 255 arguments");
                     return Err(ParseError);
                 }
                 args.push(self.expression()?);

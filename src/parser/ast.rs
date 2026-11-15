@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 #[derive(Debug)]
 pub struct Program {
     pub statements: Vec<Statement>,
@@ -31,6 +33,12 @@ pub enum Statement {
     WhileLoop {
         condition: Box<Expr>,
         body: Box<Statement>,
+    },
+
+    FunctionDeclaration {
+        name: String,
+        params: Rc<Vec<String>>,
+        body: Rc<Statement>,
     },
 }
 
