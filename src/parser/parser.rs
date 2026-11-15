@@ -67,12 +67,57 @@ impl<'a> Parser<'a> {
 
     fn statement(&mut self) -> Result<Statement, ParseError> {
         match self.peek().token_type {
+            TokenType::For => self.for_statement(),
             TokenType::If => self.if_statement(),
             TokenType::Print => self.print_statement(),
             TokenType::While => self.while_statemen(),
             TokenType::LeftBrace => self.block_statement(),
             _ => self.expression_statement(),
         }
+    }
+
+    fn for_statement(&mut self) -> Result<Statement, ParseError> {
+        self.tokens.next(); // consume 'for'
+        self.expect_token(TokenType::LeftParen, "Expect '(' after 'for'.")?;
+        
+        let initializer = match self.peek().token_type {
+            TokenType::SemiColon => {
+                self.tokens.next(); // consume the ';'
+                None
+            },
+            TokenType::Var => Some(self.var_declaration()?),
+            _ => Some(self.expression_statement()?),
+        };
+
+        let condition = if self.peek().token_type != TokenType::SemiColon {
+            Some(self.expression()?)  
+        } else {
+            None
+        };
+        self.expect_token(TokenType::SemiColon, "Expect ';' after for clauses.")?;
+
+        let increment = if self.peek().token_type != TokenType::RightParen {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.expect_token(TokenType::RightParen, "Expect ')' after for clauses.")?;
+
+
+        // desugaring into while loop
+        let mut body = self.statement()?;
+        if let Some(increment) = increment {
+            body = Statement::Block { statements: vec![body, Statement::Expression { expression: Box::new(increment) }] }
+        };
+
+        let condition = condition.unwrap_or(Expr::Literal(super::ast::Literal::Bool(true)));
+        body = Statement::WhileLoop { condition: Box::new(condition), body: Box::new(body)};
+
+        if let Some(initializer) = initializer {
+            body = Statement::Block { statements: vec![initializer, body] };
+        }
+
+        Ok(body)
     }
 
     fn if_statement(&mut self) -> Result<Statement, ParseError> {
