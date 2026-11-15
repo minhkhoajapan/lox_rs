@@ -65,6 +65,20 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn var_declaration(&mut self) -> Result<Statement, ParseError> {
+        self.tokens.next(); // consume 'var'
+        let name = self.expect_identifier("Expected variable name.")?;
+        let initializer = if self.peek().token_type == TokenType::Equal {
+            self.tokens.next(); // consume the '='
+            Some(Box::new(self.expression()?))
+        } else {
+            None
+        };
+
+        self.expect_token(TokenType::SemiColon, "Expected ';'")?;
+        Ok(Statement::VarDeclaration { name, initializer })
+    }
+
     fn statement(&mut self) -> Result<Statement, ParseError> {
         match self.peek().token_type {
             TokenType::For => self.for_statement(),
@@ -142,20 +156,6 @@ impl<'a> Parser<'a> {
         Ok(Statement::Print {
             expression: Box::new(expr),
         })
-    }
-
-    fn var_declaration(&mut self) -> Result<Statement, ParseError> {
-        self.tokens.next(); // consume 'var'
-        let name = self.expect_identifier("Expected variable name.")?;
-        let initializer = if self.peek().token_type == TokenType::Equal {
-            self.tokens.next(); // consume the '='
-            Some(Box::new(self.expression()?))
-        } else {
-            None
-        };
-
-        self.expect_token(TokenType::SemiColon, "Expected ';'")?;
-        Ok(Statement::VarDeclaration { name, initializer })
     }
 
     fn while_statemen(&mut self) -> Result<Statement, ParseError> {
