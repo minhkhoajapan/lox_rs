@@ -342,7 +342,7 @@ impl<'a> Parser<'a> {
         let unary_operator = match &self.peek().token_type {
             TokenType::Bang => UnaryOperator::Bang,
             TokenType::Minus => UnaryOperator::Minus,
-            _ => return self.primary(),
+            _ => return self.call(),
         };
         let line = self.peek().line;
         self.tokens.next();
@@ -352,6 +352,42 @@ impl<'a> Parser<'a> {
             right: Box::new(expr),
             line,
         })
+    }
+
+    fn call(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.primary()?;
+        loop {
+            expr = match self.peek().token_type {
+                TokenType::LeftParen => self.finish_call(Box::new(expr))?,
+                _ => break
+            }
+        }
+        
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Box<Expr>) -> Result<Expr, ParseError> {
+        self.tokens.next(); // consume the '('
+        let mut args = Vec::new();
+        if !matches!(self.peek().token_type, TokenType::RightParen) {
+            loop {
+                if args.len() >= 255 {
+                    syntax_error_at(self.peek(), "");
+                    return Err(ParseError);
+                }
+                args.push(self.expression()?);
+
+                if matches!(self.peek().token_type, TokenType::Comma) {
+                    self.tokens.next(); // consume the ','
+                } else {
+                    break;
+                }
+            }
+        } 
+        let line = self.peek().line;
+        self.expect_token(TokenType::RightParen, "Expect ')' after arguments.")?;
+
+        Ok(Expr::Call { callee, arguments: args, line })
     }
 
     fn primary(&mut self) -> Result<Expr, ParseError> {
