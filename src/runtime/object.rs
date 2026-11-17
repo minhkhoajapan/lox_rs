@@ -121,7 +121,9 @@ impl std::fmt::Display for LoxObject {
             LoxObject::Number(val) => f.write_fmt(format_args!("{}", val)),
             LoxObject::Str(val) => f.write_fmt(format_args!("{}", val)),
             LoxObject::Bool(val) => f.write_fmt(format_args!("{}", val)),
-            LoxObject::Nil => f.write_str("nil")
+            LoxObject::Nil => f.write_str("nil"),
+            LoxObject::UserFunction(func) => f.write_fmt(format_args!("{}", func)),
+            LoxObject::NativeFunction(func) => f.write_fmt(format_args!("{}", func)),
         }
     }
 }
