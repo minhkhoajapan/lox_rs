@@ -89,7 +89,12 @@ impl<'a> Parser<'a> {
             }
         }
         self.expect_token(TokenType::RightParen, "Expect ')' after parameters.")?;
-        self.expect_token(TokenType::LeftBrace, "Expect '{' before ")?;
+
+        // do not consume '{' here because block_statement() will consume it later
+        if !matches!(self.peek().token_type, TokenType::LeftBrace) {
+            syntax_error_at(self.peek(), "Expect '{' before function body.");
+            return Err(ParseError)
+        }
 
         let body = self.block_statement()?;
 
