@@ -1,6 +1,6 @@
-use std::fmt;
+use std::{fmt, rc::Rc};
 
-use crate::runtime::{environment::Environment, object::LoxObject};
+use crate::{parser::ast::Statement, runtime::{environment::Environment, object::LoxObject}};
 
 #[derive(Debug)]
 pub struct NativeFunction{
@@ -14,4 +14,20 @@ impl std::fmt::Display for NativeFunction {
 }
 
 #[derive(Debug)]
-pub struct UserFunction{}
+pub struct UserFunction{
+    pub name: String,
+    pub params: Rc<Vec<String>>,
+    pub body: Rc<Statement>,
+}
+
+impl UserFunction {
+    pub fn arity(&self) -> usize {
+        self.params.len()
+    }
+}
+
+impl std::fmt::Display for UserFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<fn {}>", self.name)
+    }
+}
