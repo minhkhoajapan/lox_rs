@@ -1,13 +1,18 @@
-use crate::{error::error::runtime_error, parser::ast::{BinaryOperator, Expr, Literal, LogicalOperator, Program, Statement, UnaryOperator}, runtime::{RuntimeError, environment::Environment, object::LoxObject}};
+use std::rc::Rc;
+
+use crate::{error::error::runtime_error, parser::ast::{BinaryOperator, Expr, Literal, LogicalOperator, Program, Statement, UnaryOperator}, runtime::{RuntimeError, environment::Environment, function::{UserFunction}, globals, object::LoxObject}};
 
 pub struct Interpreter {
-    pub environment: Environment
+    pub environment: Environment,
+    pub globals: Environment,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
+        let global_environment = globals::build_global();
         Interpreter {
-            environment: Environment::new(),
+            environment: global_environment.clone(),
+            globals: global_environment.clone(),
         }
     }
 
@@ -30,6 +35,10 @@ impl Interpreter {
                 self.exec_conditional(condition, then_branch, else_branch)?;
                 Ok(())
             },
+            Statement::FunctionDeclaration { name, params, body } => {
+                self.exec_function_declaration(name, params, body)?;
+                Ok(())
+            }
             Statement::Print { expression } => {
                 let obj = self.eval_expression(expression)?;
                 println!("{}", obj);
@@ -42,12 +51,25 @@ impl Interpreter {
             Statement::WhileLoop { condition, body } => {
                 self.exec_whileloop(condition, body)?;
                 Ok(())
-            }
+            },
             Statement::Block { statements } => {
-                self.exec_block(statements)?;
+                self.exec_block(statements, self.environment.clone())?;
                 Ok(())
-            }
+            },
         }
+    }
+
+    fn exec_function_declaration(&mut self, name: &str, params: &Rc<Vec<String>>, body: &Rc<Statement>) -> Result<(), RuntimeError> {
+        let function = UserFunction {
+            name: name.to_owned(),
+            params: Rc::clone(params),
+            body: Rc::clone(body),
+        };
+
+        self.environment.define(name.to_owned(), LoxObject::UserFunction(
+            Rc::new(function)
+        ));
+        Ok(())
     }
 
     fn exec_var_declaration(&mut self, name: &str, initializer: &Option<Box<Expr>>) -> Result<(), RuntimeError> {
@@ -68,9 +90,8 @@ impl Interpreter {
         Ok(())
     }
 
-    fn exec_block(&mut self, statements: &[Statement]) -> Result<(), RuntimeError> {
-        let previous = self.environment.clone();  // cheap Rc clone
-        self.environment = Environment::with_enclosing(previous.clone());
+    fn exec_block(&mut self, statements: &[Statement], enclosing_env: Environment) -> Result<(), RuntimeError> {
+        let previous = std::mem::replace(&mut self.environment, enclosing_env);  // cheap Rc clone
         let result = statements.iter().try_for_each(|s| self.exec_statement(s));
         self.environment = previous;
 
@@ -84,6 +105,7 @@ impl Interpreter {
             Expr::Logical { left, operator, right } => self.eval_logical(left, operator, right),
             Expr::Unary {operator, right, line } => self.eval_unary(operator, right, line),
             Expr::Binary { left, operator, right, line } => self.eval_binary(left, operator, right, line),
+            Expr::Call { callee, arguments, line } => self.eval_call_expr(callee, arguments, line),
             Expr::Variable { name, line } => self.eval_variable(name, line),
             Expr::Assignment { name, value, line } => self.eval_assignment(name, value, line),
         }
@@ -149,6 +171,38 @@ impl Interpreter {
             BinaryOperator::Star => left.mul(&right).map_err(|msg| RuntimeError {line: *line, msg: msg.into()}),
             BinaryOperator::Slash => left.div(&right).map_err(|msg| RuntimeError {line: *line, msg: msg.into()}),
         }
+    }
+
+    fn eval_call_expr(&mut self, callee: &Expr, args: &[Expr], line: &usize) -> Result<LoxObject, RuntimeError> {
+        let callee = self.eval_expression(callee)?;
+        let args = args
+            .iter()
+            .map(|a| self.eval_expression(a))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        match callee {
+            LoxObject::NativeFunction(f) => (f.callable)(&args, &self.environment).map_err(|msg| RuntimeError { line: *line, msg }),
+            LoxObject::UserFunction(f) => self.call_user_function(&f, args, line),
+            _ => Err(RuntimeError { line: *line, msg: "Can only call functions and classes".into() })
+        }
+    }
+
+    fn call_user_function(&mut self, f: &UserFunction, args: Vec<LoxObject>, line: &usize) -> Result<LoxObject, RuntimeError> {
+        if args.len() != f.arity() {
+            return Err(RuntimeError { line: *line, msg: format!("Expected {} arguments but got {}.", f.arity(), args.len()) });
+        }
+
+        let enclosing_env = Environment::with_enclosing(self.globals.clone());
+        for (param, arg) in f.params.iter().zip(args) {
+            enclosing_env.define(param.clone(), arg);
+        }
+
+        let Statement::Block { statements } = f.body.as_ref() else {
+            unreachable!("function body is always a block");
+        };
+
+        self.exec_block(statements, enclosing_env)?;
+        Ok(LoxObject::Nil)
     }
 
     fn eval_variable(&mut self, name: &str, line: &usize) -> Result<LoxObject, RuntimeError> {
