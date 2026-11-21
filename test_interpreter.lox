@@ -1,7 +1,7 @@
 fun add(a, b) {
-  print a + b;
+    print a + b;
 }
 
 for (var i = 0; i < 10; i = i + 1) {
-  add(i, 10);
+    print add(i, 10);
 }
