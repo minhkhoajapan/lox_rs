@@ -15,6 +15,10 @@ pub enum Statement {
         expression: Box<Expr>,
     },
 
+    Return {
+        expression: Option<Box<Expr>>,
+    },
+
     VarDeclaration {
         name: String,
         initializer: Option<Box<Expr>>,
