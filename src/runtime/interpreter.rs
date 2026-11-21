@@ -30,36 +30,40 @@ impl Interpreter {
         }
     }
 
-    fn exec_statement(&mut self, statement: &Statement) -> Result<(), RuntimeError> {
+    fn exec_statement(&mut self, statement: &Statement) -> Result<Flow, RuntimeError> {
         match statement {
             Statement::Expression { expression } => {
                 self.eval_expression(expression)?;
-                Ok(())
+                Ok(Flow::Normal)
             },
             Statement::ConditionalExpression { condition, then_branch, else_branch } => {
-                self.exec_conditional(condition, then_branch, else_branch)?;
-                Ok(())
+                self.exec_conditional(condition, then_branch, else_branch)
             },
             Statement::FunctionDeclaration { name, params, body } => {
                 self.exec_function_declaration(name, params, body)?;
-                Ok(())
-            }
+                Ok(Flow::Normal)
+            },
             Statement::Print { expression } => {
                 let obj = self.eval_expression(expression)?;
                 println!("{}", obj);
-                Ok(())
+                Ok(Flow::Normal)
+            },
+            Statement::Return { expression } => {
+                let value = match expression {
+                    Some(expr) => self.eval_expression(expr)?,
+                    None => LoxObject::Nil
+                };
+                Ok(Flow::Return(value))
             },
             Statement::VarDeclaration { name, initializer } => {
                 self.exec_var_declaration(name, initializer)?;
-                Ok(())
+                Ok(Flow::Normal)
             },
             Statement::WhileLoop { condition, body } => {
-                self.exec_whileloop(condition, body)?;
-                Ok(())
+                self.exec_whileloop(condition, body)
             },
             Statement::Block { statements } => {
-                self.exec_block(statements, self.environment.clone())?;
-                Ok(())
+                self.exec_block(statements, self.environment.clone())
             },
         }
     }
@@ -88,16 +92,25 @@ impl Interpreter {
         Ok(())
     }
 
-    fn exec_whileloop(&mut self, condition: &Expr, body: &Statement) -> Result<(), RuntimeError> {
+    fn exec_whileloop(&mut self, condition: &Expr, body: &Statement) -> Result<Flow, RuntimeError> {
         while self.eval_expression(condition)?.is_truthy() {
-            self.exec_statement(body)?;
+            let flow = self.exec_statement(body)?;
+            if let Flow::Return(_) = flow {
+                return Ok(flow);
+            }
         }
-        Ok(())
+        Ok(Flow::Normal)
     }
 
-    fn exec_block(&mut self, statements: &[Statement], enclosing_env: Environment) -> Result<(), RuntimeError> {
+    fn exec_block(&mut self, statements: &[Statement], enclosing_env: Environment) -> Result<Flow, RuntimeError> {
         let previous = std::mem::replace(&mut self.environment, enclosing_env);  // cheap Rc clone
-        let result = statements.iter().try_for_each(|s| self.exec_statement(s));
+        let mut result = Ok(Flow::Normal);
+        for s in statements {
+            result = self.exec_statement(s);
+            if !matches!(result, Ok(Flow::Normal)) {
+                break;
+            }
+        }
         self.environment = previous;
 
         result
@@ -116,13 +129,13 @@ impl Interpreter {
         }
     }
 
-    fn exec_conditional(&mut self, condition: &Expr, then_branch: &Statement, else_branch: &Option<Box<Statement>>) -> Result<(), RuntimeError> {
+    fn exec_conditional(&mut self, condition: &Expr, then_branch: &Statement, else_branch: &Option<Box<Statement>>) -> Result<Flow, RuntimeError> {
         if self.eval_expression(condition)?.is_truthy() {
             self.exec_statement(then_branch)
         } else if let Some(else_branch_unwrapped) = else_branch {
             self.exec_statement(else_branch_unwrapped)
         } else {
-            Ok(())
+            Ok(Flow::Normal)
         }
     }
 
@@ -206,8 +219,10 @@ impl Interpreter {
             unreachable!("function body is always a block");
         };
 
-        self.exec_block(statements, enclosing_env)?;
-        Ok(LoxObject::Nil)
+        match self.exec_block(statements, enclosing_env)? {
+            Flow::Normal => Ok(LoxObject::Nil),
+            Flow::Return(value) => Ok(value)
+        }
     }
 
     fn eval_variable(&mut self, name: &str, line: &usize) -> Result<LoxObject, RuntimeError> {
