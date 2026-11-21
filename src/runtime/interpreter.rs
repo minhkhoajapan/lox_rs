@@ -2,6 +2,11 @@ use std::rc::Rc;
 
 use crate::{error::error::runtime_error, parser::ast::{BinaryOperator, Expr, Literal, LogicalOperator, Program, Statement, UnaryOperator}, runtime::{RuntimeError, environment::Environment, function::{UserFunction}, globals, object::LoxObject}};
 
+enum Flow {
+    Normal,
+    Return(LoxObject),
+}
+
 pub struct Interpreter {
     pub environment: Environment,
     pub globals: Environment,
