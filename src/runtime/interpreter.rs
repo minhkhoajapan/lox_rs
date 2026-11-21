@@ -9,6 +9,7 @@ enum Flow {
 
 pub struct Interpreter {
     pub environment: Environment,
+    #[allow(dead_code)]
     pub globals: Environment,
 }
 
@@ -73,6 +74,7 @@ impl Interpreter {
             name: name.to_owned(),
             params: Rc::clone(params),
             body: Rc::clone(body),
+            closure: self.environment.clone(),
         };
 
         self.environment.define(name.to_owned(), LoxObject::UserFunction(
@@ -210,7 +212,7 @@ impl Interpreter {
             return Err(RuntimeError { line: *line, msg: format!("Expected {} arguments but got {}.", f.arity(), args.len()) });
         }
 
-        let enclosing_env = Environment::with_enclosing(self.globals.clone());
+        let enclosing_env = Environment::with_enclosing(f.closure.clone());
         for (param, arg) in f.params.iter().zip(args) {
             enclosing_env.define(param.clone(), arg);
         }

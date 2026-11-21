@@ -18,6 +18,7 @@ pub struct UserFunction{
     pub name: String,
     pub params: Rc<Vec<String>>,
     pub body: Rc<Statement>,
+    pub closure: Environment,
 }
 
 impl UserFunction {
