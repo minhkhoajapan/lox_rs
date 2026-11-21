@@ -120,6 +120,7 @@ impl<'a> Parser<'a> {
             TokenType::For => self.for_statement(),
             TokenType::If => self.if_statement(),
             TokenType::Print => self.print_statement(),
+            TokenType::Return => self.return_statement(),
             TokenType::While => self.while_statemen(),
             TokenType::LeftBrace => self.block_statement(),
             _ => self.expression_statement(),
@@ -192,6 +193,18 @@ impl<'a> Parser<'a> {
         Ok(Statement::Print {
             expression: Box::new(expr),
         })
+    }
+
+    fn return_statement(&mut self) -> Result<Statement, ParseError> {
+        self.tokens.next(); // consume 'return'
+        if matches!(self.peek().token_type, TokenType::SemiColon) {
+            self.tokens.next(); // consume the ';'
+            return Ok(Statement::Return { expression: None })
+        }
+
+        let expr = Box::new(self.expression()?);
+        self.expect_token(TokenType::SemiColon, "Expect ';' after return value.")?;
+        Ok(Statement::Return { expression: Some(expr) })
     }
 
     fn while_statemen(&mut self) -> Result<Statement, ParseError> {
