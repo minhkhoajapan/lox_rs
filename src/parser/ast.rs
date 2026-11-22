@@ -17,11 +17,13 @@ pub enum Statement {
 
     Return {
         expression: Option<Box<Expr>>,
+        line: usize,
     },
 
     VarDeclaration {
         name: String,
         initializer: Option<Box<Expr>>,
+        line: usize,
     },
 
     Block {
@@ -43,6 +45,7 @@ pub enum Statement {
         name: String,
         params: Rc<Vec<String>>,
         body: Rc<Statement>,
+        line: usize,
     },
 }
 

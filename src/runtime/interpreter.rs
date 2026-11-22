@@ -40,7 +40,7 @@ impl Interpreter {
             Statement::ConditionalExpression { condition, then_branch, else_branch } => {
                 self.exec_conditional(condition, then_branch, else_branch)
             },
-            Statement::FunctionDeclaration { name, params, body } => {
+            Statement::FunctionDeclaration { name, params, body, .. } => {
                 self.exec_function_declaration(name, params, body)?;
                 Ok(Flow::Normal)
             },
@@ -49,14 +49,14 @@ impl Interpreter {
                 println!("{}", obj);
                 Ok(Flow::Normal)
             },
-            Statement::Return { expression } => {
+            Statement::Return { expression, .. } => {
                 let value = match expression {
                     Some(expr) => self.eval_expression(expr)?,
                     None => LoxObject::Nil
                 };
                 Ok(Flow::Return(value))
             },
-            Statement::VarDeclaration { name, initializer } => {
+            Statement::VarDeclaration { name, initializer, .. } => {
                 self.exec_var_declaration(name, initializer)?;
                 Ok(Flow::Normal)
             },

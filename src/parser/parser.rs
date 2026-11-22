@@ -68,6 +68,7 @@ impl<'a> Parser<'a> {
 
     fn function_declaration(&mut self) -> Result<Statement, ParseError> {
         self.tokens.next(); // consume 'fun'
+        let line = self.peek().line;
         let name = self.expect_identifier("Expect function name.")?;
         self.expect_token(TokenType::LeftParen, "Expect '(' after function name.")?;
 
@@ -98,11 +99,12 @@ impl<'a> Parser<'a> {
 
         let body = self.block_statement()?;
 
-        Ok(Statement::FunctionDeclaration { name, params: Rc::from(params), body: Rc::from(body) })
+        Ok(Statement::FunctionDeclaration { name, params: Rc::from(params), body: Rc::from(body), line })
     }
 
     fn var_declaration(&mut self) -> Result<Statement, ParseError> {
         self.tokens.next(); // consume 'var'
+        let line = self.peek().line;
         let name = self.expect_identifier("Expected variable name.")?;
         let initializer = if self.peek().token_type == TokenType::Equal {
             self.tokens.next(); // consume the '='
@@ -112,7 +114,7 @@ impl<'a> Parser<'a> {
         };
 
         self.expect_token(TokenType::SemiColon, "Expected ';'")?;
-        Ok(Statement::VarDeclaration { name, initializer })
+        Ok(Statement::VarDeclaration { name, initializer, line })
     }
 
     fn statement(&mut self) -> Result<Statement, ParseError> {
@@ -196,15 +198,16 @@ impl<'a> Parser<'a> {
     }
 
     fn return_statement(&mut self) -> Result<Statement, ParseError> {
+        let line = self.peek().line;
         self.tokens.next(); // consume 'return'
         if matches!(self.peek().token_type, TokenType::SemiColon) {
             self.tokens.next(); // consume the ';'
-            return Ok(Statement::Return { expression: None })
+            return Ok(Statement::Return { expression: None, line })
         }
 
         let expr = Box::new(self.expression()?);
         self.expect_token(TokenType::SemiColon, "Expect ';' after return value.")?;
-        Ok(Statement::Return { expression: Some(expr) })
+        Ok(Statement::Return { expression: Some(expr), line })
     }
 
     fn while_statemen(&mut self) -> Result<Statement, ParseError> {
