@@ -258,8 +258,8 @@ impl<'a> Parser<'a> {
             // report an error if the left-hand side is not a valid assignment target
             // but do not return ParseError, just report
             // Ex: a + b = c => Parsed fine but meaningless, so it is reported only
-            if let Expr::Variable { name, line } = expr {
-                return Ok(Expr::Assignment { name, value: Box::new(value), line  })
+            if let Expr::Variable { name, line, .. } = expr {
+                return Ok(Expr::Assignment { name, value: Box::new(value), line, resolved_depth: None  })
             } else {
                 syntax_error_at(equal_token, "Invalid assignment target.");
             }
@@ -450,7 +450,7 @@ impl<'a> Parser<'a> {
             TokenType::Nil => Expr::Literal(super::ast::Literal::Nil),
             TokenType::Number(n) => Expr::Literal(super::ast::Literal::Number(*n)),
             TokenType::String(s) => Expr::Literal(super::ast::Literal::Str(s.clone())),
-            TokenType::Identifier(name) => Expr::Variable { name: name.clone(), line: token.line },
+            TokenType::Identifier(name) => Expr::Variable { name: name.clone(), line: token.line, resolved_depth: None },
             _ => {
                 return self.grouping();
             }
