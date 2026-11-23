@@ -1,10 +1,7 @@
 use std::{env, fs, process};
 
 use crate::{
-    error::error::{had_error, had_runtime_error},
-    parser::parser::Parser,
-    runtime::interpreter::Interpreter,
-    utils::scanner::scan_tokens,
+    error::error::{had_error, had_runtime_error}, parser::parser::Parser, runtime::interpreter::Interpreter, utils::{resolver::resolve_program, scanner::scan_tokens},
 };
 
 mod utils;
@@ -24,8 +21,14 @@ fn main() {
     });
 
     let tokens = scan_tokens(&source);
-    let program = Parser::new(&tokens).parse();
+    let mut program = Parser::new(&tokens).parse();
     
+    if had_error() {
+        process::exit(65);
+    }   
+
+    resolve_program(&mut program);
+
     if had_error() {
         process::exit(65);
     }   
