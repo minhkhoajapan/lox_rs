@@ -35,3 +35,8 @@ fn report(line: usize, location: &str, msg: &str) {
     eprintln!("[line {}] SyntaxError{}: {}", line, location, msg);
     HAD_ERROR.store(true, Ordering::Relaxed);
 }
+
+pub fn resolve_error(line: usize, msg: &str) {
+    eprintln!("[line {}] ResolveError: {}", line, msg);
+    HAD_ERROR.store(true, Ordering::Relaxed);
+}
