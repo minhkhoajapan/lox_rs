@@ -1,0 +1,236 @@
+use std::{collections::HashMap, rc::Rc};
+
+use crate::{error::error::resolve_error, parser::ast::{Expr, Program, Statement},};
+
+struct ResolveError {
+    line: usize,
+    msg: String,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum DeclarationState {
+    Declared,
+    Defined,
+}
+
+struct Resolver {
+    scopes: Vec<HashMap<String, DeclarationState>>,
+}
+
+pub fn resolve_program(program: &mut Program) {
+    let mut resolver = Resolver::new();
+    resolver.resolve_program(program);
+}
+
+impl Resolver {
+    fn resolve_program(&mut self, program: &mut Program) {
+        for stmt in program.statements.iter_mut() {
+            if let Err(e) = self.resolve_statement(stmt) {
+                resolve_error(e.line, &e.msg);
+            }
+        }
+    }
+
+    fn new() -> Self {
+        Resolver { scopes: Vec::new() }
+    }
+
+    fn resolve_statement(&mut self, stmt: &mut Statement) -> Result<(), ResolveError> {
+        match stmt {
+            Statement::Block { statements } => {
+                self.resolve_block_statement(statements);
+                Ok(())
+            },
+            Statement::VarDeclaration { name, initializer, line } => {
+                self.resolve_var_declaration(name, initializer, line);
+                Ok(())
+            },
+            Statement::FunctionDeclaration { name, params, body, line } => {
+                self.resolve_function_declaration(name, params, body, line);
+                Ok(())
+            },
+            Statement::Expression { expression } => self.resolve_expression(expression),
+            Statement::Print { expression } => self.resolve_expression(expression),
+            Statement::ConditionalExpression { condition, then_branch, else_branch } => {
+                self.resolve_conditional(condition, then_branch, else_branch);
+                Ok(())
+            },
+            Statement::WhileLoop { condition, body } => {
+                self.resolve_whileloop(condition, body);
+                Ok(())
+            },
+            Statement::Return { expression, .. } => {
+                self.resolve_return_statement(expression);
+                Ok(())
+            }
+        }
+    } 
+
+    fn resolve_block_statement(&mut self, statements: &mut[Statement]) {
+        self.begin_scope();
+        for stmt in statements.iter_mut() {
+            if let Err(e) = self.resolve_statement(stmt) {
+                resolve_error(e.line, &e.msg);
+            }
+        }
+        self.end_scope();
+    }
+
+    fn resolve_var_declaration(&mut self, name: &str, initializer: &mut Option<Box<Expr>>, line: &usize) {
+        if let Err(e) = self.declare(name, line) {
+            resolve_error(e.line, &e.msg);
+        }
+        if let Some(expr) = initializer 
+          && let Err(e) = self.resolve_expression(expr){
+            resolve_error(e.line, &e.msg);
+        }
+        self.define(name);
+    }
+
+    fn resolve_function_declaration(&mut self, name: &str, params: &Rc<Vec<String>>, body: &mut Rc<Statement>, line: &usize) {
+        if let Err(e) = self.declare(name, line) {
+            resolve_error(e.line, &e.msg);
+        }
+        self.define(name);
+
+        let body = Rc::get_mut(body).expect("function body is shared before resolving");                                
+        let Statement::Block { statements } = body else {
+            unreachable!("function body is always a block");
+        };
+
+        self.begin_scope();
+        for param in params.iter() {
+            if let Err(e) = self.declare(param, line) {
+                resolve_error(e.line, &e.msg);
+            }
+            self.define(param);
+        }
+        for stmt in statements.iter_mut() {
+            if let Err(e) = self.resolve_statement(stmt) {
+                resolve_error(e.line, &e.msg);
+            }
+        }
+        self.end_scope();
+    }
+
+    fn resolve_conditional(&mut self, condition: &mut Expr, then_branch: &mut Statement, else_branch: &mut Option<Box<Statement>>) {
+        if let Err(e) = self.resolve_expression(condition) {
+            resolve_error(e.line, &e.msg);
+        }
+        if let Err(e) = self.resolve_statement(then_branch) {
+            resolve_error(e.line, &e.msg);
+        }
+        if let Some(stmt) = else_branch 
+          && let Err(e) = self.resolve_statement(stmt) {
+            resolve_error(e.line, &e.msg);
+        }
+    }
+
+    fn resolve_whileloop(&mut self, condition: &mut Expr, body: &mut Statement) {
+        if let Err(e) = self.resolve_expression(condition) {
+            resolve_error(e.line, &e.msg);
+        }
+
+        if let Err(e) = self.resolve_statement(body) {
+            resolve_error(e.line, &e.msg);
+        }
+    }
+
+    fn resolve_return_statement(&mut self, expr: &mut Option<Box<Expr>>) {
+        if let Some(expr) = expr
+          && let Err(e) = self.resolve_expression(expr) {
+            resolve_error(e.line, &e.msg);
+        }
+    }
+
+    fn resolve_expression(&mut self, expr: &mut Expr) -> Result<(), ResolveError> {
+        match expr {
+            Expr::Assignment { name, value, resolved_depth, .. } => {
+                self.resolve_assignment_expression(name, value, resolved_depth);
+                Ok(())
+            }
+            Expr::Binary { left, right, .. } => {
+                self.resolve_expression(left)?;
+                self.resolve_expression(right)
+            },
+            Expr::Call { callee, arguments, .. } => {
+                self.resolve_expression(callee)?;
+                for arg in arguments.iter_mut() {
+                    self.resolve_expression(arg)?;
+                }
+                Ok(())
+            },
+            Expr::Grouping(expr) => self.resolve_expression(expr),
+            Expr::Literal(..) => Ok(()),
+            Expr::Logical { left, right, .. } => {
+                self.resolve_expression(left)?;
+                self.resolve_expression(right)
+            },
+            Expr::Unary { right, .. } => self.resolve_expression(right),
+            Expr::Variable { name, line, resolved_depth } => self.resolve_variable_expression(name, line, resolved_depth)
+        }
+    }
+
+    fn resolve_assignment_expression(&mut self, name: &str, expr: &mut Expr, resolved_depth: &mut Option<usize>) {
+        if let Err(e) = self.resolve_expression(expr) {
+            resolve_error(e.line, &e.msg);
+        }
+        self.resolve_local(name, resolved_depth);
+    }
+
+    fn resolve_variable_expression(&self, name: &str, line: &usize, resolved_depth: &mut Option<usize>) -> Result<(), ResolveError> {
+        if !self.scopes.is_empty() && 
+          matches!(self.get_state_in_current_scope(name), 
+                   Some(DeclarationState::Declared)) {
+            return Err(ResolveError { 
+                line: *line, 
+                msg: "Can't read local variable in its own initializer.".to_string(),
+            })
+        }
+
+        self.resolve_local(name, resolved_depth);
+        Ok(())
+    }
+    
+    fn declare(&mut self, name: &str, line: &usize) -> Result<(), ResolveError> {
+        if matches!(self.get_state_in_current_scope(name), Some(..)) {
+            return Err(ResolveError { 
+                line: *line, 
+                msg: format!("Error at '{}': A variable with this name already exists in this scope ", name) 
+            });
+        }
+
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.insert(name.to_string(), DeclarationState::Declared);
+            Ok(())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn define(&mut self, name: &str) {
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.insert(name.to_string(), DeclarationState::Defined);
+        }
+    }
+
+    fn get_state_in_current_scope(&self, name: &str) -> Option<DeclarationState> {
+        if let Some(scope) = self.scopes.last() {
+            scope.get(name).cloned()
+        } else {
+            None
+        }
+    }
+
+    fn resolve_local(&self, name: &str, resolved_depth: &mut Option<usize>) {
+        *resolved_depth = self.scopes.iter().rev().position(|scope| scope.contains_key(name))
+    }
+
+    fn begin_scope(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    fn end_scope(&mut self) {
+        self.scopes.pop();
+    }
+}
