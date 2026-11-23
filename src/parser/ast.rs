@@ -63,6 +63,7 @@ pub enum Expr {
         name: String,
         value: Box<Expr>,
         line: usize,
+        resolved_depth: Option<usize>,
     },
     Binary {
         left: Box<Expr>,
@@ -90,6 +91,7 @@ pub enum Expr {
     Variable {
         name: String,
         line: usize,
+        resolved_depth: Option<usize>,
     },
 }
 
