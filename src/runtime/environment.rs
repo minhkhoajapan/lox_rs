@@ -33,11 +33,20 @@ impl Environment {
         let scope = self.0.borrow();
         if let Some(value) = scope.values.get(name) {
             Ok(value.clone())
-        }
-        else if let Some(enclose) = &scope.enclosing {
-            enclose.get(name)
         } else {
             Err(format!("Undefined variable '{}'", name))
+        }
+    }
+
+    pub fn get_at(&self, name: &str, depth: usize) -> Result<LoxObject, String> {
+        if depth == 0 {
+            return self.get(name);
+        }
+
+        let scope = self.0.borrow();
+        match &scope.enclosing {
+            Some(enclosing) => enclosing.get_at(name, depth - 1),
+            None => unreachable!("resolver depth is deeper than the environment chain.")
         }
     }
 
@@ -46,10 +55,20 @@ impl Environment {
         if let Some(slot) = scope.values.get_mut(name) {
             *slot = value;
             Ok(())
-        } else if let Some(enclose) = &scope.enclosing {
-            enclose.assign(name, value)
         }  else {
             Err(format!("Undefined variable '{}'", name))
+        }
+    }
+
+    pub fn assign_at(&self, name: &str, value: LoxObject, depth: usize) -> Result<(), String> {
+        if depth == 0 {
+            return self.assign(name, value);
+        }
+
+        let scope = self.0.borrow();
+        match &scope.enclosing {
+            Some(enclosing) => enclosing.assign_at(name, value, depth - 1),
+            None => unreachable!("resolver depth is deeper than the environment chain.")
         }
     }
 }

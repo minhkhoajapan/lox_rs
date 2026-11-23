@@ -64,7 +64,7 @@ impl Interpreter {
                 self.exec_whileloop(condition, body)
             },
             Statement::Block { statements } => {
-                self.exec_block(statements, self.environment.clone())
+                self.exec_block(statements, Environment::with_enclosing(self.environment.clone()))
             },
         }
     }
@@ -126,8 +126,8 @@ impl Interpreter {
             Expr::Unary {operator, right, line } => self.eval_unary(operator, right, line),
             Expr::Binary { left, operator, right, line } => self.eval_binary(left, operator, right, line),
             Expr::Call { callee, arguments, line } => self.eval_call_expr(callee, arguments, line),
-            Expr::Variable { name, line } => self.eval_variable(name, line),
-            Expr::Assignment { name, value, line } => self.eval_assignment(name, value, line),
+            Expr::Variable { name, line, resolved_depth } => self.eval_variable(name, line, resolved_depth),
+            Expr::Assignment { name, value, line, resolved_depth } => self.eval_assignment(name, value, line, resolved_depth),
         }
     }
 
@@ -227,13 +227,31 @@ impl Interpreter {
         }
     }
 
-    fn eval_variable(&mut self, name: &str, line: &usize) -> Result<LoxObject, RuntimeError> {
-        self.environment.get(name).map_err(|msg| RuntimeError {line: *line, msg})
+    fn eval_variable(&mut self, name: &str, line: &usize, resolved_depth: &Option<usize>) -> Result<LoxObject, RuntimeError> {
+        let obj_ref = if let Some(depth) = *resolved_depth {
+            self.environment
+                .get_at(name, depth)
+                .map_err(|msg| RuntimeError {line: *line, msg})?
+        } else {
+            self.globals
+                .get(name)
+                .map_err(|msg| RuntimeError { line: *line, msg })?
+        };
+
+        Ok(obj_ref)
     }
 
-    fn eval_assignment(&mut self, name: &str, value: &Expr, line: &usize) -> Result<LoxObject, RuntimeError> {
+    fn eval_assignment(&mut self, name: &str, value: &Expr, line: &usize, resolved_depth: &Option<usize>) -> Result<LoxObject, RuntimeError> {
         let value = self.eval_expression(value)?;
-        self.environment.assign(name, value.clone()).map_err(|msg| RuntimeError {line: *line, msg})?;
+        if let Some(depth) = *resolved_depth {
+            self.environment
+                .assign_at(name, value.clone(), depth)
+                .map_err(|msg| RuntimeError {line: *line, msg})?
+        } else {
+            self.globals
+                .assign(name, value.clone())
+                .map_err(|msg| RuntimeError {line: *line, msg})?
+        }
 
         Ok(value)
     }
