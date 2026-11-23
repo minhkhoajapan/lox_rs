@@ -33,12 +33,15 @@ impl Interpreter {
 
     fn exec_statement(&mut self, statement: &Statement) -> Result<Flow, RuntimeError> {
         match statement {
-            Statement::Expression { expression } => {
-                self.eval_expression(expression)?;
-                Ok(Flow::Normal)
+            Statement::Block { statements } => {
+                self.exec_block(statements, Environment::with_enclosing(self.environment.clone()))
             },
             Statement::ConditionalExpression { condition, then_branch, else_branch } => {
                 self.exec_conditional(condition, then_branch, else_branch)
+            },
+            Statement::Expression { expression } => {
+                self.eval_expression(expression)?;
+                Ok(Flow::Normal)
             },
             Statement::FunctionDeclaration { name, params, body, .. } => {
                 self.exec_function_declaration(name, params, body)?;
@@ -63,9 +66,30 @@ impl Interpreter {
             Statement::WhileLoop { condition, body } => {
                 self.exec_whileloop(condition, body)
             },
-            Statement::Block { statements } => {
-                self.exec_block(statements, Environment::with_enclosing(self.environment.clone()))
-            },
+        }
+    }
+
+    fn exec_block(&mut self, statements: &[Statement], enclosing_env: Environment) -> Result<Flow, RuntimeError> {
+        let previous = std::mem::replace(&mut self.environment, enclosing_env);  // cheap Rc clone
+        let mut result = Ok(Flow::Normal);
+        for s in statements {
+            result = self.exec_statement(s);
+            if !matches!(result, Ok(Flow::Normal)) {
+                break;
+            }
+        }
+        self.environment = previous;
+
+        result
+     }
+
+    fn exec_conditional(&mut self, condition: &Expr, then_branch: &Statement, else_branch: &Option<Box<Statement>>) -> Result<Flow, RuntimeError> {
+        if self.eval_expression(condition)?.is_truthy() {
+            self.exec_statement(then_branch)
+        } else if let Some(else_branch_unwrapped) = else_branch {
+            self.exec_statement(else_branch_unwrapped)
+        } else {
+            Ok(Flow::Normal)
         }
     }
 
@@ -104,75 +128,32 @@ impl Interpreter {
         Ok(Flow::Normal)
     }
 
-    fn exec_block(&mut self, statements: &[Statement], enclosing_env: Environment) -> Result<Flow, RuntimeError> {
-        let previous = std::mem::replace(&mut self.environment, enclosing_env);  // cheap Rc clone
-        let mut result = Ok(Flow::Normal);
-        for s in statements {
-            result = self.exec_statement(s);
-            if !matches!(result, Ok(Flow::Normal)) {
-                break;
-            }
-        }
-        self.environment = previous;
-
-        result
-     }
-
     fn eval_expression(&mut self, expr: &Expr) -> Result<LoxObject, RuntimeError> {
         match expr {
+            Expr::Assignment { name, value, line, resolved_depth } => self.eval_assignment(name, value, line, resolved_depth),
+            Expr::Binary { left, operator, right, line } => self.eval_binary(left, operator, right, line),
+            Expr::Call { callee, arguments, line } => self.eval_call_expr(callee, arguments, line),
             Expr::Grouping(expr) => self.eval_expression(expr),
             Expr::Literal(val) => self.eval_literal_value(val),
             Expr::Logical { left, operator, right } => self.eval_logical(left, operator, right),
             Expr::Unary {operator, right, line } => self.eval_unary(operator, right, line),
-            Expr::Binary { left, operator, right, line } => self.eval_binary(left, operator, right, line),
-            Expr::Call { callee, arguments, line } => self.eval_call_expr(callee, arguments, line),
             Expr::Variable { name, line, resolved_depth } => self.eval_variable(name, line, resolved_depth),
-            Expr::Assignment { name, value, line, resolved_depth } => self.eval_assignment(name, value, line, resolved_depth),
         }
     }
 
-    fn exec_conditional(&mut self, condition: &Expr, then_branch: &Statement, else_branch: &Option<Box<Statement>>) -> Result<Flow, RuntimeError> {
-        if self.eval_expression(condition)?.is_truthy() {
-            self.exec_statement(then_branch)
-        } else if let Some(else_branch_unwrapped) = else_branch {
-            self.exec_statement(else_branch_unwrapped)
+    fn eval_assignment(&mut self, name: &str, value: &Expr, line: &usize, resolved_depth: &Option<usize>) -> Result<LoxObject, RuntimeError> {
+        let value = self.eval_expression(value)?;
+        if let Some(depth) = *resolved_depth {
+            self.environment
+                .assign_at(name, value.clone(), depth)
+                .map_err(|msg| RuntimeError {line: *line, msg})?
         } else {
-            Ok(Flow::Normal)
+            self.globals
+                .assign(name, value.clone())
+                .map_err(|msg| RuntimeError {line: *line, msg})?
         }
-    }
 
-    fn eval_literal_value(&mut self, val: &Literal) -> Result<LoxObject, RuntimeError> {
-        Ok(match val {
-            Literal::Number(num) => LoxObject::Number(*num),
-            Literal::Bool(b) => LoxObject::Bool(*b),
-            Literal::Str(s) => LoxObject::Str(s.clone()),
-            Literal::Nil => LoxObject::Nil,
-        })
-    }
-
-    fn eval_logical(&mut self, left: &Expr, operator: &LogicalOperator, right: &Expr) -> Result<LoxObject, RuntimeError> {
-        let left_result = self.eval_expression(left)?;
-        match operator {
-            LogicalOperator::Or => {
-                if left_result.is_truthy() {
-                    return Ok(left_result);
-                }
-            },
-            LogicalOperator::And => {
-                if !left_result.is_truthy() {
-                    return Ok(left_result);
-                }
-            }
-        }
-        self.eval_expression(right)
-    }
-
-    fn eval_unary(&mut self, operator: &UnaryOperator, right_expr: &Expr, line: &usize) -> Result<LoxObject, RuntimeError> {
-        let expr_value = self.eval_expression(right_expr)?;   
-        match operator {
-            UnaryOperator::Minus => expr_value.neg().map_err(|msg| RuntimeError{line: *line, msg: msg.into()}),
-            UnaryOperator::Bang => Ok(expr_value.not()),
-        }
+        Ok(value)
     }
 
     fn eval_binary(&mut self, left: &Expr, operator: &BinaryOperator, right: &Expr, line: &usize) -> Result<LoxObject, RuntimeError> {
@@ -180,8 +161,8 @@ impl Interpreter {
         let right = self.eval_expression(right)?;
 
         match operator {
-            BinaryOperator::EqualEqual => Ok(left.eq(&right)),
             BinaryOperator::BangEqual => Ok(left.neq(&right)),
+            BinaryOperator::EqualEqual => Ok(left.eq(&right)),
             BinaryOperator::Greater => left.gt(&right).map_err(|msg| RuntimeError { line: *line, msg: msg.into() }),
             BinaryOperator::GreaterEqual => left.ge(&right).map_err(|msg| RuntimeError { line: *line, msg: msg.into() }),
             BinaryOperator::Less => left.lt(&right).map_err(|msg| RuntimeError { line: *line, msg: msg.into() }),
@@ -227,6 +208,40 @@ impl Interpreter {
         }
     }
 
+    fn eval_literal_value(&mut self, val: &Literal) -> Result<LoxObject, RuntimeError> {
+        Ok(match val {
+            Literal::Number(num) => LoxObject::Number(*num),
+            Literal::Bool(b) => LoxObject::Bool(*b),
+            Literal::Str(s) => LoxObject::Str(s.clone()),
+            Literal::Nil => LoxObject::Nil,
+        })
+    }
+
+    fn eval_logical(&mut self, left: &Expr, operator: &LogicalOperator, right: &Expr) -> Result<LoxObject, RuntimeError> {
+        let left_result = self.eval_expression(left)?;
+        match operator {
+            LogicalOperator::Or => {
+                if left_result.is_truthy() {
+                    return Ok(left_result);
+                }
+            },
+            LogicalOperator::And => {
+                if !left_result.is_truthy() {
+                    return Ok(left_result);
+                }
+            }
+        }
+        self.eval_expression(right)
+    }
+
+    fn eval_unary(&mut self, operator: &UnaryOperator, right_expr: &Expr, line: &usize) -> Result<LoxObject, RuntimeError> {
+        let expr_value = self.eval_expression(right_expr)?;   
+        match operator {
+            UnaryOperator::Minus => expr_value.neg().map_err(|msg| RuntimeError{line: *line, msg: msg.into()}),
+            UnaryOperator::Bang => Ok(expr_value.not()),
+        }
+    }
+
     fn eval_variable(&mut self, name: &str, line: &usize, resolved_depth: &Option<usize>) -> Result<LoxObject, RuntimeError> {
         let obj_ref = if let Some(depth) = *resolved_depth {
             self.environment
@@ -239,20 +254,5 @@ impl Interpreter {
         };
 
         Ok(obj_ref)
-    }
-
-    fn eval_assignment(&mut self, name: &str, value: &Expr, line: &usize, resolved_depth: &Option<usize>) -> Result<LoxObject, RuntimeError> {
-        let value = self.eval_expression(value)?;
-        if let Some(depth) = *resolved_depth {
-            self.environment
-                .assign_at(name, value.clone(), depth)
-                .map_err(|msg| RuntimeError {line: *line, msg})?
-        } else {
-            self.globals
-                .assign(name, value.clone())
-                .map_err(|msg| RuntimeError {line: *line, msg})?
-        }
-
-        Ok(value)
     }
 }

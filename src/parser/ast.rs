@@ -7,8 +7,25 @@ pub struct Program {
 
 #[derive(Debug)]
 pub enum Statement {
+    Block {
+        statements: Vec<Statement>,
+    },
+
+    ConditionalExpression {
+        condition: Box<Expr>,
+        then_branch: Box<Statement>,
+        else_branch: Option<Box<Statement>>,
+    },
+
     Expression {
         expression: Box<Expr>,
+    },
+
+    FunctionDeclaration {
+        name: String,
+        params: Rc<Vec<String>>,
+        body: Rc<Statement>,
+        line: usize,
     },
 
     Print {
@@ -26,35 +43,18 @@ pub enum Statement {
         line: usize,
     },
 
-    Block {
-        statements: Vec<Statement>,
-    },
-
-    ConditionalExpression {
-        condition: Box<Expr>,
-        then_branch: Box<Statement>,
-        else_branch: Option<Box<Statement>>,
-    },
-
     WhileLoop {
         condition: Box<Expr>,
         body: Box<Statement>,
-    },
-
-    FunctionDeclaration {
-        name: String,
-        params: Rc<Vec<String>>,
-        body: Rc<Statement>,
-        line: usize,
     },
 }
 
 #[derive(Debug, Clone)]
 pub enum Literal {
-    Number(f64),
-    Str(String),
     Bool(bool),
+    Number(f64),
     Nil,
+    Str(String),
 }
 
 #[derive(Debug)]
@@ -97,12 +97,12 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub enum BinaryOperator {
-    EqualEqual,
     BangEqual,
-    Less,
-    LessEqual,
+    EqualEqual,
     Greater,
     GreaterEqual,
+    Less,
+    LessEqual,
     Plus,
     Minus,
     Star,
@@ -111,12 +111,12 @@ pub enum BinaryOperator {
 
 #[derive(Debug)]
 pub enum UnaryOperator {
-    Minus,
     Bang,
+    Minus,
 }
 
 #[derive(Debug)]
 pub enum LogicalOperator {
-    Or,
     And,
+    Or,
 }
