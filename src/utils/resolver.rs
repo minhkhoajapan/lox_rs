@@ -13,8 +13,15 @@ enum DeclarationState {
     Defined,
 }
 
+#[derive(Clone, Copy, Debug)]
+enum FunctionType {
+    None,
+    Function,
+}
+
 struct Resolver {
     scopes: Vec<HashMap<String, DeclarationState>>,
+    current_function_type: FunctionType,
 }
 
 pub fn resolve_program(program: &mut Program) {
@@ -32,7 +39,10 @@ impl Resolver {
     }
 
     fn new() -> Self {
-        Resolver { scopes: Vec::new() }
+        Resolver { 
+            scopes: Vec::new(), 
+            current_function_type: FunctionType::None,
+        }
     }
 
     fn resolve_statement(&mut self, stmt: &mut Statement) -> Result<(), ResolveError> {
@@ -46,7 +56,7 @@ impl Resolver {
                 Ok(())
             },
             Statement::FunctionDeclaration { name, params, body, line } => {
-                self.resolve_function_declaration(name, params, body, line);
+                self.resolve_function_declaration(name, params, body, line, FunctionType::Function);
                 Ok(())
             },
             Statement::Expression { expression } => self.resolve_expression(expression),
@@ -59,9 +69,8 @@ impl Resolver {
                 self.resolve_whileloop(condition, body);
                 Ok(())
             },
-            Statement::Return { expression, .. } => {
-                self.resolve_return_statement(expression);
-                Ok(())
+            Statement::Return { expression, line } => {
+                self.resolve_return_statement(expression, line)
             }
         }
     } 
@@ -87,7 +96,8 @@ impl Resolver {
         self.define(name);
     }
 
-    fn resolve_function_declaration(&mut self, name: &str, params: &Rc<Vec<String>>, body: &mut Rc<Statement>, line: &usize) {
+    fn resolve_function_declaration(&mut self, name: &str, params: &Rc<Vec<String>>, body: &mut Rc<Statement>, line: &usize,
+                function_type: FunctionType) {
         if let Err(e) = self.declare(name, line) {
             resolve_error(e.line, &e.msg);
         }
@@ -98,6 +108,8 @@ impl Resolver {
             unreachable!("function body is always a block");
         };
 
+        let enclosing_function_type = self.current_function_type;
+        self.current_function_type = function_type;
         self.begin_scope();
         for param in params.iter() {
             if let Err(e) = self.declare(param, line) {
@@ -111,6 +123,7 @@ impl Resolver {
             }
         }
         self.end_scope();
+        self.current_function_type = enclosing_function_type;
     }
 
     fn resolve_conditional(&mut self, condition: &mut Expr, then_branch: &mut Statement, else_branch: &mut Option<Box<Statement>>) {
@@ -136,10 +149,13 @@ impl Resolver {
         }
     }
 
-    fn resolve_return_statement(&mut self, expr: &mut Option<Box<Expr>>) {
-        if let Some(expr) = expr
-          && let Err(e) = self.resolve_expression(expr) {
-            resolve_error(e.line, &e.msg);
+    fn resolve_return_statement(&mut self, expr: &mut Option<Box<Expr>>, line: &usize) -> Result<(), ResolveError> {
+        if matches!(self.current_function_type, FunctionType::None) {
+            Err(ResolveError { line: *line, msg: "Error at 'return': Can't return from a top level code".to_string() })
+        } else if let Some(expr) = expr {
+            self.resolve_expression(expr)
+        } else {
+            Ok(())
         }
     }
 
