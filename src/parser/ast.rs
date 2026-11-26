@@ -11,6 +11,12 @@ pub enum Statement {
         statements: Vec<Statement>,
     },
 
+    Class {
+        name: String,
+        methods: Vec<Statement>, // always Statement::FunctionDeclaration
+        line: usize,
+    },
+
     ConditionalExpression {
         condition: Box<Expr>,
         then_branch: Box<Statement>,
@@ -76,12 +82,27 @@ pub enum Expr {
         arguments: Vec<Expr>,
         line:usize,
     },
+    Get {
+        object: Box<Expr>,
+        name: String,
+        line: usize,
+    },
     Grouping(Box<Expr>),
     Literal(Literal),
     Logical {
         left: Box<Expr>,
         operator: LogicalOperator,
         right: Box<Expr>,
+    },
+    Set {
+        object: Box<Expr>,
+        name: String,
+        value: Box<Expr>,
+        line: usize,
+    },
+    This {
+        line: usize,
+        resolved_depth: Option<usize>,
     },
     Unary {
         operator: UnaryOperator,

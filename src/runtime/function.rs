@@ -19,11 +19,25 @@ pub struct UserFunction{
     pub params: Rc<Vec<String>>,
     pub body: Rc<Statement>,
     pub closure: Environment,
+    pub is_initializer: bool,
 }
 
 impl UserFunction {
     pub fn arity(&self) -> usize {
         self.params.len()
+    }
+
+    // wrap the closure in a new scope that only holds 'this'
+    pub fn bind(&self, instance: LoxObject) -> UserFunction {
+        let env = Environment::with_enclosing(self.closure.clone());
+        env.define("this".into(), instance);
+        UserFunction {
+            name: self.name.clone(),
+            params: Rc::clone(&self.params),
+            body: Rc::clone(&self.body),
+            closure: env,
+            is_initializer: self.is_initializer,
+        }
     }
 }
 

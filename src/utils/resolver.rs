@@ -17,11 +17,20 @@ enum DeclarationState {
 enum FunctionType {
     None,
     Function,
+    Initializer,
+    Method,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum ClassType {
+    None,
+    Class,
 }
 
 struct Resolver {
     scopes: Vec<HashMap<String, DeclarationState>>,
     current_function_type: FunctionType,
+    current_class_type: ClassType,
 }
 
 pub fn resolve_program(program: &mut Program) {
@@ -42,6 +51,7 @@ impl Resolver {
         Resolver { 
             scopes: Vec::new(), 
             current_function_type: FunctionType::None,
+            current_class_type: ClassType::None,
         }
     }
 
@@ -51,12 +61,16 @@ impl Resolver {
                 self.resolve_block_statement(statements);
                 Ok(())
             },
+            Statement::Class { name, methods, line } => {
+                self.resolve_class_declaration(name, methods, line);
+                Ok(())
+            },
             Statement::VarDeclaration { name, initializer, line } => {
                 self.resolve_var_declaration(name, initializer, line);
                 Ok(())
             },
             Statement::FunctionDeclaration { name, params, body, line } => {
-                self.resolve_function_declaration(name, params, body, line, FunctionType::Function);
+                self.resolve_function_declaration(name, params, body, line);
                 Ok(())
             },
             Statement::Expression { expression } => self.resolve_expression(expression),
@@ -85,6 +99,30 @@ impl Resolver {
         self.end_scope();
     }
 
+    fn resolve_class_declaration(&mut self, name: &str, methods: &mut [Statement], line: &usize) {
+        if let Err(e) = self.declare(name, line) {
+            resolve_error(e.line, &e.msg);
+        }
+        self.define(name);
+
+        let enclosing_class_type = self.current_class_type;
+        self.current_class_type = ClassType::Class;
+
+        // scope that holds 'this', matching the env created by UserFunction::bind
+        self.begin_scope();
+        self.define("this");
+        for method in methods.iter_mut() {
+            let Statement::FunctionDeclaration { name, params, body, line } = method else {
+                unreachable!("class body only contains methods");
+            };
+            let function_type = if name == "init" { FunctionType::Initializer } else { FunctionType::Method };
+            self.resolve_function(params, body, line, function_type);
+        }
+        self.end_scope();
+
+        self.current_class_type = enclosing_class_type;
+    }
+
     fn resolve_var_declaration(&mut self, name: &str, initializer: &mut Option<Box<Expr>>, line: &usize) {
         if let Err(e) = self.declare(name, line) {
             resolve_error(e.line, &e.msg);
@@ -96,13 +134,16 @@ impl Resolver {
         self.define(name);
     }
 
-    fn resolve_function_declaration(&mut self, name: &str, params: &Rc<Vec<String>>, body: &mut Rc<Statement>, line: &usize,
-                function_type: FunctionType) {
+    fn resolve_function_declaration(&mut self, name: &str, params: &Rc<Vec<String>>, body: &mut Rc<Statement>, line: &usize) {
         if let Err(e) = self.declare(name, line) {
             resolve_error(e.line, &e.msg);
         }
         self.define(name);
+        self.resolve_function(params, body, line, FunctionType::Function);
+    }
 
+    // resolves params and body only; methods use this directly since their name isn't declared in a scope
+    fn resolve_function(&mut self, params: &Rc<Vec<String>>, body: &mut Rc<Statement>, line: &usize, function_type: FunctionType) {
         let body = Rc::get_mut(body).expect("function body is shared before resolving");                                
         let Statement::Block { statements } = body else {
             unreachable!("function body is always a block");
@@ -152,6 +193,8 @@ impl Resolver {
     fn resolve_return_statement(&mut self, expr: &mut Option<Box<Expr>>, line: &usize) -> Result<(), ResolveError> {
         if matches!(self.current_function_type, FunctionType::None) {
             Err(ResolveError { line: *line, msg: "Error at 'return': Can't return from a top level code".to_string() })
+        } else if matches!(self.current_function_type, FunctionType::Initializer) && expr.is_some() {
+            Err(ResolveError { line: *line, msg: "Error at 'return': Can't return a value from an initializer.".to_string() })
         } else if let Some(expr) = expr {
             self.resolve_expression(expr)
         } else {
@@ -176,11 +219,23 @@ impl Resolver {
                 }
                 Ok(())
             },
+            Expr::Get { object, .. } => self.resolve_expression(object),
             Expr::Grouping(expr) => self.resolve_expression(expr),
             Expr::Literal(..) => Ok(()),
             Expr::Logical { left, right, .. } => {
                 self.resolve_expression(left)?;
                 self.resolve_expression(right)
+            },
+            Expr::Set { object, value, .. } => {
+                self.resolve_expression(value)?;
+                self.resolve_expression(object)
+            },
+            Expr::This { line, resolved_depth } => {
+                if matches!(self.current_class_type, ClassType::None) {
+                    return Err(ResolveError { line: *line, msg: "Error at 'this': Can't use 'this' outside of a class.".to_string() });
+                }
+                self.resolve_local("this", resolved_depth);
+                Ok(())
             },
             Expr::Unary { right, .. } => self.resolve_expression(right),
             Expr::Variable { name, line, resolved_depth } => self.resolve_variable_expression(name, line, resolved_depth)

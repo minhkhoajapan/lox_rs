@@ -60,14 +60,33 @@ impl<'a> Parser<'a> {
 
     fn declaration(&mut self) -> Result<Statement, ParseError> {
         match self.peek().token_type {
-            TokenType::Fun => self.function_declaration(),
+            TokenType::Class => self.class_declaration(),
+            TokenType::Fun => {
+                self.tokens.next(); // consume 'fun'
+                self.function_declaration()
+            },
             TokenType::Var => self.var_declaration(),
             _ => self.statement(),
         }
     }
 
+    fn class_declaration(&mut self) -> Result<Statement, ParseError> {
+        self.tokens.next(); // consume 'class'
+        let line = self.peek().line;
+        let name = self.expect_identifier("Expect class name.")?;
+        self.expect_token(TokenType::LeftBrace, "Expect '{' before class body.")?;
+
+        let mut methods = Vec::new();
+        while !matches!(self.peek().token_type, TokenType::RightBrace) && !self.is_at_end() {
+            methods.push(self.function_declaration()?);
+        }
+        self.expect_token(TokenType::RightBrace, "Expect '}' after class body.")?;
+
+        Ok(Statement::Class { name, methods, line })
+    }
+
+    // parses a function or a method, starting at its name ('fun' is already consumed for functions)
     fn function_declaration(&mut self) -> Result<Statement, ParseError> {
-        self.tokens.next(); // consume 'fun'
         let line = self.peek().line;
         let name = self.expect_identifier("Expect function name.")?;
         self.expect_token(TokenType::LeftParen, "Expect '(' after function name.")?;
@@ -258,10 +277,14 @@ impl<'a> Parser<'a> {
             // report an error if the left-hand side is not a valid assignment target
             // but do not return ParseError, just report
             // Ex: a + b = c => Parsed fine but meaningless, so it is reported only
-            if let Expr::Variable { name, line, .. } = expr {
-                return Ok(Expr::Assignment { name, value: Box::new(value), line, resolved_depth: None  })
-            } else {
-                syntax_error_at(equal_token, "Invalid assignment target.");
+            match expr {
+                Expr::Variable { name, line, .. } => {
+                    return Ok(Expr::Assignment { name, value: Box::new(value), line, resolved_depth: None  })
+                },
+                Expr::Get { object, name, line } => {
+                    return Ok(Expr::Set { object, name, value: Box::new(value), line })
+                },
+                _ => syntax_error_at(equal_token, "Invalid assignment target."),
             }
         }
 
@@ -411,6 +434,12 @@ impl<'a> Parser<'a> {
         loop {
             expr = match self.peek().token_type {
                 TokenType::LeftParen => self.finish_call(Box::new(expr))?,
+                TokenType::Dot => {
+                    self.tokens.next(); // consume '.'
+                    let line = self.peek().line;
+                    let name = self.expect_identifier("Expect property name after '.'.")?;
+                    Expr::Get { object: Box::new(expr), name, line }
+                },
                 _ => break
             }
         }
@@ -451,6 +480,7 @@ impl<'a> Parser<'a> {
             TokenType::Number(n) => Expr::Literal(super::ast::Literal::Number(*n)),
             TokenType::String(s) => Expr::Literal(super::ast::Literal::Str(s.clone())),
             TokenType::Identifier(name) => Expr::Variable { name: name.clone(), line: token.line, resolved_depth: None },
+            TokenType::This => Expr::This { line: token.line, resolved_depth: None },
             _ => {
                 return self.grouping();
             }

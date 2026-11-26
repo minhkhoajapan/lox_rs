@@ -1,6 +1,6 @@
-use std::{fmt, rc::Rc};
+use std::{cell::RefCell, fmt, rc::Rc};
 
-use crate::runtime::function::{NativeFunction, UserFunction};
+use crate::runtime::{class::{LoxClass, LoxInstance}, function::{NativeFunction, UserFunction}};
 
 #[derive(Debug, Clone)]
 pub enum LoxObject {
@@ -9,6 +9,8 @@ pub enum LoxObject {
     Bool(bool),
     UserFunction(Rc<UserFunction>),
     NativeFunction(Rc<NativeFunction>),
+    Class(Rc<LoxClass>),
+    Instance(Rc<RefCell<LoxInstance>>),
     Nil,
 }
 
@@ -35,6 +37,8 @@ impl LoxObject {
             (Str(x), Str(y)) => Bool( x == y),
             (Bool(x), Bool(y)) => Bool (x == y),
             (Nil, Nil) => Bool(true),
+            (Class(x), Class(y)) => Bool(Rc::ptr_eq(x, y)),
+            (Instance(x), Instance(y)) => Bool(Rc::ptr_eq(x, y)),
             _ => Bool(false)
         }
     }
@@ -124,6 +128,8 @@ impl std::fmt::Display for LoxObject {
             LoxObject::Nil => f.write_str("nil"),
             LoxObject::UserFunction(func) => f.write_fmt(format_args!("{}", func)),
             LoxObject::NativeFunction(func) => f.write_fmt(format_args!("{}", func)),
+            LoxObject::Class(class) => f.write_fmt(format_args!("{}", class)),
+            LoxObject::Instance(instance) => f.write_fmt(format_args!("{}", instance.borrow())),
         }
     }
 }
